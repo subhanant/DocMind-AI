@@ -63,12 +63,12 @@ export function StatsCard({
   return (
     <Card
       interactive
-      className="group relative overflow-hidden"
+      className="group relative h-full overflow-hidden"
     >
       <div
         aria-hidden
         className={cn(
-          "pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100",
+          "pointer-events-none absolute inset-x-0 -top-16 h-32 bg-gradient-to-b to-transparent opacity-0 transition-opacity duration-300 ease-[var(--ease-settle)] group-hover:opacity-100",
           palette.glow
         )}
       />
@@ -95,7 +95,7 @@ export function StatsCard({
         </div>
         <span
           className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-transform duration-200 group-hover:scale-105 [&_svg]:size-5",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-transform duration-200 ease-[var(--ease-settle)] group-hover:scale-105 [&_svg]:size-5",
             palette.plate
           )}
         >

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatDateTime, getInitials } from "@/lib/utils";
+import { motionVars } from "@/components/motion/reveal";
 
 interface HealthStatus {
   status: string;
@@ -92,7 +93,10 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {/* Profile */}
-        <Card className="overflow-hidden">
+        <Card
+          className="overflow-hidden motion-settle"
+          style={motionVars({ index: 1 })}
+        >
           <div className="flex items-center gap-3 border-b border-line px-5 py-4">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300 [&_svg]:size-4">
               <UserIcon />
@@ -135,7 +139,10 @@ export default function SettingsPage() {
         </Card>
 
         {/* Backend health */}
-        <Card className="overflow-hidden">
+        <Card
+          className="overflow-hidden motion-settle"
+          style={motionVars({ index: 2 })}
+        >
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div className="flex items-center gap-3">
               <span
@@ -221,7 +228,10 @@ export default function SettingsPage() {
       </div>
 
       {/* Security architecture */}
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden motion-settle"
+        style={motionVars({ index: 3 })}
+      >
         <div className="flex items-center gap-3 border-b border-line px-5 py-4">
           <ShieldCheck className="h-4 w-4 text-brand-500" aria-hidden />
           <h2 className="text-sm font-semibold text-ink">
@@ -229,10 +239,11 @@ export default function SettingsPage() {
           </h2>
         </div>
         <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
-          {SECURITY_CARDS.map((card) => (
+          {SECURITY_CARDS.map((card, cardIndex) => (
             <div
               key={card.title}
-              className="rounded-xl border border-line bg-surface-muted/50 p-4 transition-colors hover:bg-surface-hover"
+              className="rounded-xl border border-line bg-surface-muted/50 p-4 transition-colors duration-200 hover:bg-surface-hover motion-fade"
+              style={motionVars({ index: cardIndex, delay: 160, duration: "0.4s" })}
             >
               <card.icon className="h-4 w-4 text-brand-500" aria-hidden />
               <h3 className="mt-2.5 text-xs font-semibold text-ink">{card.title}</h3>

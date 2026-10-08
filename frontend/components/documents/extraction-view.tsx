@@ -38,6 +38,7 @@ import { Table, TableWrapper, Td, Th, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
 import { cn, formatConfidence, formatDocType } from "@/lib/utils";
+import { MaskReveal, StaggerScope, motionVars } from "@/components/motion/reveal";
 
 interface ExtractionViewProps {
   extraction: ExtractionResult | null;
@@ -384,7 +385,7 @@ function NotProcessedCard({
   };
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden motion-settle" style={motionVars({ index: 0 })}>
       <EmptyState
         icon={Sparkles}
         title="AI extraction has not run yet"
@@ -399,7 +400,11 @@ function NotProcessedCard({
       <div className="border-t border-line bg-surface-muted/50 px-6 py-4">
         <ol className="mx-auto flex max-w-md flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] font-medium text-ink-subtle">
           {["Upload", "OCR", "Classify", "Extract", "Validate"].map((stage, index, all) => (
-            <li key={stage} className="flex items-center gap-2">
+            <li
+              key={stage}
+              className="flex items-center gap-2 motion-fade"
+              style={motionVars({ index, delay: 120, duration: "0.4s" })}
+            >
               <span className="rounded-md border border-line bg-surface px-1.5 py-0.5">
                 {stage}
               </span>
@@ -736,7 +741,7 @@ function ExtractionResults({
 
   const visibleSections = resolvedSections.filter((section) => section.visible.length > 0);
 
-  const renderField = (field: FieldDef) => {
+  const renderField = (field: FieldDef, fieldIndex = 0) => {
     const resolved = getField(field.paths, field.evidenceKeys);
     const formKey = field.editKey ?? field.paths[0].replace(/\./g, "_");
 
@@ -765,7 +770,8 @@ function ExtractionResults({
       return (
         <div
           key={field.label}
-          className="flex items-baseline justify-between gap-3 border-b border-line/60 py-2.5 last:border-0"
+          className="flex items-baseline justify-between gap-3 border-b border-line/60 py-2.5 last:border-0 motion-fade"
+          style={motionVars({ index: fieldIndex, duration: "0.4s" })}
         >
           <span className="text-xs font-medium text-ink-muted">{field.label}</span>
           <span className="text-xs italic text-ink-subtle">Not extracted</span>
@@ -778,11 +784,16 @@ function ExtractionResults({
     return (
       <div
         key={field.label}
-        className="border-b border-line/60 py-2.5 transition-colors last:border-0 hover:bg-surface-hover/50"
+        className="border-b border-line/60 py-2.5 transition-colors duration-200 last:border-0 hover:bg-surface-hover/50 motion-fade"
+        style={motionVars({ index: fieldIndex, duration: "0.4s" })}
       >
         <div className="flex items-start justify-between gap-3">
           <span className="text-xs font-medium text-ink-muted">{field.label}</span>
-          <div className="flex shrink-0 items-center gap-1.5">
+          {/* Confidence lands a beat after the field it belongs to. */}
+          <div
+            className="flex shrink-0 items-center gap-1.5 motion-fade"
+            style={motionVars({ index: fieldIndex, delay: 150, duration: "0.35s" })}
+          >
             {resolved.page !== undefined && resolved.page !== null && (
               <span className="rounded border border-line bg-surface-muted px-1 py-px text-[10px] text-ink-subtle">
                 p.{resolved.page}
@@ -813,21 +824,47 @@ function ExtractionResults({
   return (
     <div className="space-y-5">
       {/* Overview + toolbar */}
-      <Card className="overflow-hidden">
+      {/* CONTAINER SETTLE: the overview panel arrives first. */}
+      <Card
+        className="relative overflow-hidden motion-settle"
+        style={motionVars({ index: 0 })}
+      >
+        {/* DRAW: one accent edge grows across the top of the panel. */}
+        <span
+          aria-hidden
+          className="absolute inset-x-0 top-0 h-0.5 origin-left bg-gradient-to-r from-brand-500 via-brand-500/40 to-transparent motion-draw-x"
+          style={motionVars({ index: 1, duration: "0.8s" })}
+        />
         <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
             <ConfidenceRing score={extraction.confidence_score} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold text-ink">
+                {/* MASK: the result title rises out of its clip. */}
+                <MaskReveal
+                  as="h2"
+                  className="text-base font-semibold text-ink"
+                  delay={120}
+                >
                   {formatDocType(documentType || "bill_of_lading")} extraction
-                </h2>
-                <Badge variant="neutral" size="sm">
+                </MaskReveal>
+                <Badge
+                  variant="neutral"
+                  size="sm"
+                  className="motion-fade"
+                  style={motionVars({ delay: 320, duration: "0.4s" })}
+                >
                   v{extraction.schema_version || "2.0"}
                 </Badge>
               </div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
-                <Badge variant={validation.variant} size="sm">
+                {/* Status badges follow their heading, never lead it. */}
+                <Badge
+                  variant={validation.variant}
+                  size="sm"
+                  className="motion-fade"
+                  style={motionVars({ delay: 420, duration: "0.4s" })}
+                >
                   <CheckCircle2 className="h-3 w-3" />
                   {validation.label}
                 </Badge>
@@ -956,7 +993,10 @@ function ExtractionResults({
 
       {/* Dangerous goods */}
       {hasDangerousGoods && (
-        <div className="flex items-start gap-4 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-5 dark:border-amber-900/60 dark:from-amber-950/30 dark:to-orange-950/20">
+        <div
+          className="flex items-start gap-4 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-5 motion-settle dark:border-amber-900/60 dark:from-amber-950/30 dark:to-orange-950/20"
+          style={motionVars({ index: 1 })}
+        >
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-soft [&_svg]:size-5">
             <Flame />
           </span>
@@ -986,7 +1026,7 @@ function ExtractionResults({
 
       {/* Field sections */}
       {visibleSections.length === 0 ? (
-        <Card>
+        <Card className="motion-settle" style={motionVars({ index: 1 })}>
           <EmptyState
             compact
             icon={Search}
@@ -1000,9 +1040,24 @@ function ExtractionResults({
           />
         </Card>
       ) : (
+        /* SECTIONS APPEAR SEQUENTIALLY — capped so a long result set still
+           resolves well inside the 1.2s entrance budget. */
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          {visibleSections.map((section) => (
-            <Card key={section.key} className="overflow-hidden">
+          {visibleSections.map((section, sectionIndex) => (
+            <Card
+              key={section.key}
+              className="relative overflow-hidden motion-settle"
+              style={motionVars({ index: Math.min(sectionIndex, 5) + 2 })}
+            >
+              <span
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-px origin-left bg-gradient-to-r from-brand-500/60 via-brand-500/15 to-transparent motion-draw-x"
+                style={motionVars({
+                  index: Math.min(sectionIndex, 5) + 2,
+                  delay: 120,
+                  duration: "0.8s",
+                })}
+              />
               <div className="flex items-center gap-2.5 border-b border-line px-5 py-3.5">
                 <section.icon className={cn("h-4 w-4", section.iconClass)} aria-hidden />
                 <h3 className="text-sm font-semibold text-ink">{section.title}</h3>
@@ -1011,14 +1066,18 @@ function ExtractionResults({
                   {section.entries.length}
                 </span>
               </div>
-              <div
+              {/* Tighter cadence inside a card so fields resolve quickly. */}
+              <StaggerScope
+                stagger="var(--motion-stagger-tight)"
                 className={cn(
                   "px-5 py-2",
                   isEditing && "grid grid-cols-1 gap-3 py-4 sm:grid-cols-2"
                 )}
               >
-                {section.visible.map(({ field }) => renderField(field))}
-              </div>
+                {section.visible.map(({ field }, fieldIndex) =>
+                  renderField(field, fieldIndex)
+                )}
+              </StaggerScope>
             </Card>
           ))}
         </div>
@@ -1026,7 +1085,19 @@ function ExtractionResults({
 
       {/* Containers */}
       {containersList.length > 0 && (
-        <Card className="overflow-hidden">
+        <Card
+          className="relative overflow-hidden motion-settle"
+          style={motionVars({ index: Math.min(visibleSections.length, 5) + 2 })}
+        >
+          <span
+            aria-hidden
+            className="absolute inset-x-0 top-0 h-px origin-left bg-gradient-to-r from-brand-500/60 via-brand-500/15 to-transparent motion-draw-x"
+            style={motionVars({
+              index: Math.min(visibleSections.length, 5) + 2,
+              delay: 120,
+              duration: "0.8s",
+            })}
+          />
           <div className="flex items-center gap-2.5 border-b border-line px-5 py-3.5">
             <Package className="h-4 w-4 text-brand-500" aria-hidden />
             <h3 className="text-sm font-semibold text-ink">Containers</h3>
@@ -1061,7 +1132,12 @@ function ExtractionResults({
                     0.95;
 
                   return (
-                    <Tr key={index}>
+                    /* Opacity-only: rows never move, so no layout jump. */
+                    <Tr
+                      key={index}
+                      className="motion-fade"
+                      style={motionVars({ index, duration: "0.4s" })}
+                    >
                       <Td className="font-mono text-xs font-semibold text-brand-700 dark:text-brand-300">
                         {number}
                       </Td>

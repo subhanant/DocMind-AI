@@ -23,6 +23,8 @@ import { Progress } from "@/components/ui/progress";
 import { FileTypeIcon } from "@/components/documents/file-icon";
 import { useToast } from "@/components/ui/toast";
 import { cn, formatBytes } from "@/lib/utils";
+import { Reveal, motionVars } from "@/components/motion/reveal";
+import { ProcessingStrip } from "@/components/motion/processing-strip";
 
 const ALLOWED_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "webp", "docx", "xlsx"];
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // matches backend MAX_UPLOAD_SIZE_MB
@@ -217,7 +219,10 @@ export function UploadDropzone() {
   return (
     <div className="space-y-6">
       {/* Classification hint */}
-      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <Card
+        className="flex flex-col gap-4 p-5 motion-settle sm:flex-row sm:items-center sm:justify-between"
+        style={motionVars({ index: 0 })}
+      >
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-ink">Classification hint</h2>
           <p className="mt-1 max-w-xl text-xs leading-relaxed text-ink-muted">
@@ -253,80 +258,85 @@ export function UploadDropzone() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* Dropzone */}
         <div className="lg:col-span-3">
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="Drag and drop files here, or press Enter to browse"
-            onClick={() => fileInputRef.current?.click()}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                fileInputRef.current?.click();
-              }
-            }}
-            onDragEnter={handleDragEnter}
-            onDragOver={(event) => event.preventDefault()}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={cn(
-              "focus-ring flex h-full min-h-[320px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-[border-color,background-color,transform] duration-200",
-              isDragging
-                ? "scale-[1.01] border-brand-500 bg-brand-50/70 dark:bg-brand-950/30"
-                : "border-line-strong bg-surface-muted/40 hover:border-brand-400 hover:bg-surface-hover"
-            )}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
-              className="hidden"
-              onChange={(event) => {
-                if (event.target.files?.length) handleFilesAdded(event.target.files);
-                event.target.value = "";
+          <Reveal index={1} className="h-full">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Drag and drop files here, or press Enter to browse"
+              onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  fileInputRef.current?.click();
+                }
               }}
-            />
-
-            <span
+              onDragEnter={handleDragEnter}
+              onDragOver={(event) => event.preventDefault()}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               className={cn(
-                "flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-brand transition-transform duration-200 [&_svg]:size-7",
-                isDragging && "scale-110"
+                "focus-ring flex h-full min-h-[320px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-[border-color,background-color,transform,box-shadow] duration-200 ease-[var(--ease-settle)]",
+                isDragging
+                  ? "scale-[1.005] border-brand-500 bg-brand-50/70 shadow-card dark:bg-brand-950/30"
+                  : "border-line-strong bg-surface-muted/40 hover:border-brand-400 hover:bg-surface-hover hover:shadow-card"
               )}
             >
-              <UploadCloud />
-            </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
+                className="hidden"
+                onChange={(event) => {
+                  if (event.target.files?.length) handleFilesAdded(event.target.files);
+                  event.target.value = "";
+                }}
+              />
 
-            <p className="mt-5 text-base font-semibold text-ink">
-              {isDragging ? "Drop files to add them" : "Drag & drop documents here"}
-            </p>
-            <p className="mt-1.5 text-sm text-ink-muted">
-              or{" "}
-              <span className="font-semibold text-brand-600 underline underline-offset-4 dark:text-brand-300">
-                browse your files
-              </span>{" "}
-              — you can also paste with ⌘V
-            </p>
+              <span
+                className={cn(
+                  "flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-brand transition-transform duration-200 [&_svg]:size-7",
+                  isDragging && "scale-110"
+                )}
+              >
+                <UploadCloud />
+              </span>
 
-            <ul className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
-              {ALLOWED_EXTENSIONS.map((ext) => (
-                <li
-                  key={ext}
-                  className="rounded-md border border-line bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle"
-                >
-                  {ext}
-                </li>
-              ))}
-            </ul>
+              <p className="mt-5 text-base font-semibold text-ink">
+                {isDragging ? "Drop files to add them" : "Drag & drop documents here"}
+              </p>
+              <p className="mt-1.5 text-sm text-ink-muted">
+                or{" "}
+                <span className="font-semibold text-brand-600 underline underline-offset-4 dark:text-brand-300">
+                  browse your files
+                </span>{" "}
+                — you can also paste with ⌘V
+              </p>
 
-            <p className="mt-5 text-[11px] text-ink-subtle">
-              Max {MAX_FILES} files per batch · 50 MB per file
-            </p>
-          </div>
+              <ul className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
+                {ALLOWED_EXTENSIONS.map((ext) => (
+                  <li
+                    key={ext}
+                    className="rounded-md border border-line bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle"
+                  >
+                    {ext}
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-5 text-[11px] text-ink-subtle">
+                Max {MAX_FILES} files per batch · 50 MB per file
+              </p>
+            </div>
+          </Reveal>
         </div>
 
         {/* Guidance panel */}
         <div className="lg:col-span-2">
-          <Card className="h-full p-5">
+          <Card
+            className="h-full p-5 motion-settle"
+            style={motionVars({ index: 2 })}
+          >
             <div className="flex items-center gap-2.5">
               <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300 [&_svg]:size-4">
                 <Sparkles />
@@ -353,7 +363,11 @@ export function UploadDropzone() {
                   body: "Fields are returned with confidence scores and source evidence.",
                 },
               ].map((step, index) => (
-                <li key={step.title} className="flex gap-3">
+                <li
+                  key={step.title}
+                  className="flex gap-3 motion-fade"
+                  style={motionVars({ index: index + 3, duration: "0.45s" })}
+                >
                   <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-line bg-surface-muted text-[10px] font-bold text-ink-muted">
                     {index + 1}
                   </span>
@@ -381,20 +395,27 @@ export function UploadDropzone() {
       </div>
 
       {globalError && (
-        <Alert variant="error" title="Upload blocked">
-          {globalError}
-        </Alert>
+        <Reveal index={0} duration="0.5s">
+          <Alert variant="error" title="Upload blocked">
+            {globalError}
+          </Alert>
+        </Reveal>
       )}
 
       {resultMessage && (
-        <Alert variant="success" title="Upload complete" role="status">
-          {resultMessage}
-        </Alert>
+        <Reveal index={0} duration="0.5s">
+          <Alert variant="success" title="Upload complete" role="status">
+            {resultMessage}
+          </Alert>
+        </Reveal>
       )}
 
       {/* Queue */}
       {files.length > 0 && (
-        <Card className="overflow-hidden">
+        <Card
+          className="overflow-hidden motion-settle"
+          style={motionVars({ index: 0, duration: "0.55s" })}
+        >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div className="flex items-center gap-2.5">
               <FileStack className="h-4 w-4 text-ink-subtle" />
@@ -417,8 +438,12 @@ export function UploadDropzone() {
           </div>
 
           <ul className="divide-y divide-line">
-            {files.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-5 py-3.5">
+            {files.map((item, fileIndex) => (
+              <li
+                key={item.id}
+                className="flex items-center gap-3 px-5 py-3.5 motion-settle"
+                style={motionVars({ index: Math.min(fileIndex, 6), duration: "0.45s" })}
+              >
                 <FileTypeIcon fileType={item.file.name.split(".").pop()} />
 
                 <div className="min-w-0 flex-1">
@@ -436,19 +461,23 @@ export function UploadDropzone() {
                       </span>
                     )}
                   </div>
-                  {(item.status === "uploading" || item.status === "success") && (
-                    <Progress
-                      value={item.progress}
-                      className="mt-2 max-w-xs"
-                      tone={item.status === "success" ? "emerald" : "brand"}
-                    />
+                  {item.status === "uploading" && (
+                    /* Indeterminate: we do not know how long the request takes,
+                       so a sweeping hairline reads better than a fake bar. */
+                    <ProcessingStrip className="mt-2.5 max-w-xs" />
+                  )}
+                  {item.status === "success" && (
+                    <Progress value={100} className="mt-2 max-w-xs" tone="emerald" />
                   )}
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
                   {item.status === "uploading" && (
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-600 dark:text-brand-300">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-600 motion-fade dark:text-brand-300">
+                      <span
+                        aria-hidden
+                        className="h-1.5 w-1.5 rounded-full bg-brand-500 motion-tick motion-essential"
+                      />
                       Uploading
                     </span>
                   )}
@@ -480,7 +509,7 @@ export function UploadDropzone() {
             ))}
           </ul>
 
-          <div className="flex flex-col gap-3 border-t border-line bg-surface-muted/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-line bg-surface-muted/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between motion-fade" style={motionVars({ duration: "0.5s" })}>
             <p className="text-xs text-ink-muted">
               {pendingCount > 0
                 ? `${pendingCount} file${pendingCount === 1 ? "" : "s"} ready to upload`
@@ -491,7 +520,12 @@ export function UploadDropzone() {
 
             <div className="flex flex-wrap items-center gap-2">
               {uploadComplete && (
-                <>
+                /* Completion CTAs settle in once the queue is accepted. */
+                <Reveal
+                  index={0}
+                  duration="0.45s"
+                  className="flex flex-wrap items-center gap-2"
+                >
                   <Button variant="outline" onClick={resetAll}>
                     Upload more
                   </Button>
@@ -499,7 +533,7 @@ export function UploadDropzone() {
                     View in documents
                     <Sparkles className="h-4 w-4" />
                   </Button>
-                </>
+                </Reveal>
               )}
               {!uploadComplete && (
                 <Button
@@ -509,7 +543,7 @@ export function UploadDropzone() {
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin motion-essential" />
                       Uploading…
                     </>
                   ) : (

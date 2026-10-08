@@ -31,7 +31,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
           ref={ref}
           id={selectId}
           className={cn(
-            "focus-ring w-full cursor-pointer appearance-none rounded-xl border border-line bg-surface text-ink shadow-card transition-[border-color,box-shadow] duration-150 hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-60",
+            "focus-ring w-full cursor-pointer appearance-none rounded-xl border border-line bg-surface text-ink shadow-card transition-[border-color,box-shadow] duration-200 ease-[var(--ease-settle)] hover:border-line-strong disabled:cursor-not-allowed disabled:opacity-60",
             size === "sm" ? "h-8 py-0 pr-8 pl-2.5 text-xs" : "h-10 pr-9 pl-3 text-sm",
             className
           )}

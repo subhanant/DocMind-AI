@@ -38,7 +38,11 @@
   --shadow-pop: 0 16px 32px -12px rgb(16 24 40 / 0.18), 0 4px 8px -4px rgb(16 24 40 / 0.08);
   --shadow-brand: 0 8px 20px -8px rgb(79 70 229 / 0.45);
 
-  /* Motion */
+  /* Motion — easing curves used across the whole motion system */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-settle: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
+
   --animate-fade-in: fade-in 0.24s ease-out both;
   --animate-fade-up: fade-up 0.34s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-scale-in: scale-in 0.16s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -118,6 +122,104 @@
       transform: scale(1.9);
     }
   }
+
+  /*
+   * Motion system keyframes.
+   *
+   * Only `opacity` and `transform` are animated — never width/height/top/left —
+   * so every entrance stays on the compositor and off the layout thread.
+   * Each animation resolves to `transform: none` so no lingering containing
+   * block is left behind (which would break `position: fixed` descendants).
+   */
+
+  /* SETTLE — element rises a few px into place */
+  @keyframes motion-settle {
+    from {
+      opacity: 0;
+      transform: translate3d(0, var(--motion-distance, 10px), 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* MASK — text sits below its clipping container and rises in */
+  @keyframes motion-mask {
+    from {
+      transform: translate3d(0, 110%, 0);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  /* DRAW — a rule/border sweeps out from its origin */
+  @keyframes motion-draw-x {
+    from {
+      transform: scale3d(0, 1, 0);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes motion-draw-y {
+    from {
+      transform: scale3d(1, 0, 0);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  /* Opacity-only variant for dense lists and table rows */
+  @keyframes motion-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Route entrance */
+  @keyframes motion-page-in {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 8px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /*
+   * Processing sweep — the only intentionally continuous loop, and it only
+   * exists while a document is actually processing. Sized for a `w-1/4` bar:
+   * -100% sits just outside the left edge, 400% exits the right edge.
+   */
+  @keyframes motion-sweep {
+    0% {
+      transform: translate3d(-100%, 0, 0);
+    }
+    100% {
+      transform: translate3d(400%, 0, 0);
+    }
+  }
+
+  @keyframes motion-tick {
+    0%,
+    100% {
+      opacity: 0.3;
+      transform: scale3d(0.7, 0.7, 1);
+    }
+    50% {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 /*
@@ -135,6 +237,27 @@
   --color-ink: var(--ink);
   --color-ink-muted: var(--ink-muted);
   --color-ink-subtle: var(--ink-subtle);
+}
+
+/*
+ * Motion tuning knobs. Components never hard-code a delay: they pass an
+ * `index` that is multiplied by --motion-stagger, so the whole entrance
+ * sequence can be tightened (or disabled) from one place.
+ */
+:root {
+  --motion-distance: 10px;
+  --motion-stagger: 70ms;
+  /* Tighter cadence for lists nested inside an already-staggered container. */
+  --motion-stagger-tight: 38ms;
+}
+
+/* Touch viewports: shorter travel, tighter stagger, fewer moving parts. */
+@media (max-width: 640px) {
+  :root {
+    --motion-distance: 6px;
+    --motion-stagger: 40ms;
+    --motion-stagger-tight: 24ms;
+  }
 }
 
 @layer base {
@@ -276,14 +399,98 @@
   }
 }
 
-/* Respect users who ask for less motion */
+/* ------------------------------------------------------------------ */
+/* Motion utilities                                                    */
+/* ------------------------------------------------------------------ */
+
+@layer components {
+  /*
+   * Delay is composed in CSS (`index * stagger + delay`) so a media query can
+   * compress the whole sequence on mobile without re-rendering React.
+   */
+  .motion-settle,
+  .motion-mask,
+  .motion-draw-x,
+  .motion-draw-y,
+  .motion-fade,
+  .motion-page-in {
+    --_motion-delay: calc(
+      var(--motion-index, 0) * var(--motion-stagger, 70ms) + var(--motion-delay, 0ms)
+    );
+  }
+
+  /* SETTLE: 6–12px rise + fade, used for cards, panels, buttons, nav rows */
+  .motion-settle {
+    animation: motion-settle var(--motion-duration, 0.7s) var(--ease-settle)
+      var(--_motion-delay) both;
+  }
+
+  /* MASK: pair with an `overflow-hidden` parent to reveal text upward */
+  .motion-mask {
+    animation: motion-mask var(--motion-duration, 0.85s) var(--ease-expo)
+      var(--_motion-delay) both;
+  }
+
+  /* DRAW: horizontal/vertical rule reveal, anchored by transform-origin */
+  .motion-draw-x {
+    transform-origin: left center;
+    animation: motion-draw-x var(--motion-duration, 0.9s) var(--ease-expo)
+      var(--_motion-delay) both;
+  }
+
+  .motion-draw-y {
+    transform-origin: top center;
+    animation: motion-draw-y var(--motion-duration, 0.9s) var(--ease-expo)
+      var(--_motion-delay) both;
+  }
+
+  /* Opacity-only entrance for dense lists and table rows */
+  .motion-fade {
+    animation: motion-fade var(--motion-duration, 0.5s) var(--ease-settle)
+      var(--_motion-delay) both;
+  }
+
+  .motion-page-in {
+    animation: motion-page-in 0.42s var(--ease-expo) both;
+  }
+
+  /* Processing sweep (continuous by design — see .motion-essential below) */
+  .motion-sweep {
+    animation: motion-sweep 1.5s var(--ease-swift) infinite;
+  }
+
+  .motion-tick {
+    animation: motion-tick 1.4s var(--ease-swift) infinite;
+  }
+}
+
+/*
+ * Reduced motion: content must appear immediately and stay still.
+ * `animation-delay` must be zeroed too — otherwise a 0.001ms animation with a
+ * 400ms backwards-fill delay would still hide the element for 400ms.
+ *
+ * `.motion-essential` keeps functional feedback alive (loading spinners and
+ * processing sweeps). Without a live indicator a "frozen" spinner reads as a
+ * hung app, so these opt back in at a calm rate.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
+  }
+
+  .motion-essential,
+  .motion-essential::before,
+  .motion-essential::after {
+    animation-duration: 1.6s !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: infinite !important;
+    transition-duration: 160ms !important;
   }
 }

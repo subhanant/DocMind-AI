@@ -12,6 +12,7 @@ import { Table, TableWrapper, Td, Th, Tr } from "@/components/ui/table";
 import { ConfidenceMeter } from "@/components/ui/confidence";
 import { TableSkeleton } from "@/components/ui/skeleton";
 import { cn, formatBytes, formatDate, formatDateTime, formatDocType } from "@/lib/utils";
+import { motionVars } from "@/components/motion/reveal";
 
 interface DocumentTableProps {
   documents: DocumentSummary[];
@@ -58,13 +59,17 @@ export function DocumentTable({
           </tr>
         </thead>
         <tbody>
-          {documents.map((doc) => (
+          {documents.map((doc, rowIndex) => (
+            /* Opacity-only entrance: rows never move, so the table cannot jump.
+               The animation is dropped while a row is pending deletion — an
+               animation would otherwise override the `opacity-50` dimming. */
             <Tr
               key={doc.id}
               className={cn(
                 "group",
-                pendingDeleteId === doc.id && "opacity-50"
+                pendingDeleteId === doc.id ? "opacity-50" : "motion-fade"
               )}
+              style={motionVars({ index: Math.min(rowIndex, 7), duration: "0.4s" })}
             >
               <Td className="max-w-[280px]">
                 <div className="flex items-center gap-3">

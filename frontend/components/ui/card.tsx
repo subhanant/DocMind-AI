@@ -10,7 +10,7 @@ const Card = React.forwardRef<
     className={cn(
       "rounded-2xl border border-line bg-surface text-ink shadow-card",
       interactive &&
-        "transition-[box-shadow,border-color,transform] duration-200 hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift",
+        "transition-[box-shadow,border-color,transform] duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift",
       className
     )}
     {...props}

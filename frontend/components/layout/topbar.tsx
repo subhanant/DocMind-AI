@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
 import { cn, getInitials } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { motionVars } from "@/components/motion/reveal";
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const router = useRouter();
@@ -36,12 +37,15 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   }, []);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 w-full items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur-xl sm:px-6">
+    <header
+      className="sticky top-0 z-30 flex h-16 w-full items-center gap-3 border-b border-line bg-surface/85 px-4 backdrop-blur-xl motion-fade sm:px-6"
+      style={motionVars({ duration: "0.5s" })}
+    >
       <button
         type="button"
         onClick={onMenuClick}
         aria-label="Open navigation"
-        className="focus-ring rounded-lg p-2 text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink lg:hidden"
+        className="focus-ring rounded-lg p-2 text-ink-muted transition-[background-color,color] duration-200 ease-[var(--ease-settle)] hover:bg-surface-hover hover:text-ink lg:hidden"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -59,7 +63,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           onChange={(event) => setSearchTerm(event.target.value)}
           placeholder="Search documents…"
           aria-label="Search documents"
-          className="focus-ring h-9 w-full rounded-xl border border-line bg-surface-muted pl-9 pr-16 text-sm text-ink transition-[background-color,border-color] duration-150 placeholder:text-ink-subtle hover:border-line-strong focus:bg-surface [&::-webkit-search-cancel-button]:hidden"
+          className="focus-ring h-9 w-full rounded-xl border border-line bg-surface-muted pl-9 pr-16 text-sm text-ink transition-[background-color,border-color,box-shadow] duration-200 ease-[var(--ease-settle)] placeholder:text-ink-subtle hover:border-line-strong focus:bg-surface [&::-webkit-search-cancel-button]:hidden"
         />
         {searchTerm ? (
           <button
@@ -96,7 +100,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           onClick={toggleTheme}
           aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
           title={isDark ? "Switch to light theme" : "Switch to dark theme"}
-          className="focus-ring rounded-lg p-2 text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
+          className="focus-ring rounded-lg p-2 text-ink-muted transition-[background-color,color] duration-200 ease-[var(--ease-settle)] hover:bg-surface-hover hover:text-ink"
         >
           {isDark ? (
             <Sun className="h-[18px] w-[18px] text-amber-400" />

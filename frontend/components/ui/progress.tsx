@@ -1,6 +1,12 @@
 import { cn } from "@/lib/utils";
 
-/** Determinate progress bar (uploads, extraction completeness). */
+/**
+ * Determinate progress bar (uploads, extraction completeness).
+ *
+ * The fill is scaled from the left edge rather than having its `width`
+ * animated, so the transition stays on the compositor and never triggers
+ * layout. Origin is left, so the bar grows in the reading direction.
+ */
 export function Progress({
   value,
   className,
@@ -27,8 +33,11 @@ export function Progress({
       aria-valuemax={100}
     >
       <div
-        className={cn("h-full rounded-full transition-[width] duration-300 ease-out", fill)}
-        style={{ width: `${clamped}%` }}
+        className={cn(
+          "h-full w-full origin-left rounded-full transition-transform duration-500 ease-[var(--ease-settle)]",
+          fill
+        )}
+        style={{ transform: `scale3d(${clamped / 100}, 1, 1)` }}
       />
     </div>
   );
@@ -45,7 +54,7 @@ export function IndeterminateProgress({ className }: { className?: string }) {
       role="progressbar"
       aria-label="Working"
     >
-      <div className="absolute inset-y-0 w-1/3 animate-progress rounded-full bg-brand-500" />
+      <div className="absolute inset-y-0 w-1/3 animate-progress rounded-full bg-brand-500 motion-essential" />
     </div>
   );
 }

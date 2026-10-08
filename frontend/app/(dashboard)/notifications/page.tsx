@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
+import { motionVars } from "@/components/motion/reveal";
 
 const PAGE_SIZE = 15;
 
@@ -132,7 +133,7 @@ export default function NotificationsPage() {
                 setPage(1);
               }}
               className={cn(
-                "focus-ring rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors duration-150",
+                "focus-ring rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors duration-200 ease-[var(--ease-settle)]",
                 active
                   ? "bg-surface text-ink shadow-card"
                   : "text-ink-muted hover:bg-surface-hover hover:text-ink"
@@ -149,7 +150,10 @@ export default function NotificationsPage() {
         })}
       </div>
 
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden motion-settle"
+        style={motionVars({ index: 1 })}
+      >
         {isLoading ? (
           <div className="divide-y divide-line">
             {Array.from({ length: 5 }).map((_, index) => (
@@ -181,7 +185,7 @@ export default function NotificationsPage() {
           />
         ) : (
           <ul className="divide-y divide-line">
-            {notifications.map((item) => {
+            {notifications.map((item, index) => {
               const style = TYPE_STYLES[item.type] ?? {
                 plate: "bg-surface-muted text-ink-subtle",
                 icon: Info,
@@ -192,9 +196,10 @@ export default function NotificationsPage() {
                 <li
                   key={item.id}
                   className={cn(
-                    "relative flex items-start gap-4 p-5 transition-colors",
+                    "relative flex items-start gap-4 p-5 transition-colors duration-200 motion-fade",
                     item.is_read ? "hover:bg-surface-hover" : "bg-brand-50/30 dark:bg-brand-950/15"
                   )}
+                  style={motionVars({ index: Math.min(index, 8), duration: "0.4s" })}
                 >
                   {!item.is_read && (
                     <span

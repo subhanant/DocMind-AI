@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { PageTransition } from "@/components/motion/page-transition";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardLayout({
@@ -64,7 +65,9 @@ export default function DashboardLayout({
       <div className="flex min-h-screen flex-col lg:pl-64">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 sm:py-8">
-          {children}
+          {/* PAGE TRANSITION: remounts on route change and replays a short
+              entrance. No exit animation, no loading gate. */}
+          <PageTransition>{children}</PageTransition>
         </main>
       </div>
     </div>

@@ -19,7 +19,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         type={type}
         aria-invalid={invalid || undefined}
         className={cn(
-          "focus-ring h-10 w-full rounded-xl border bg-surface px-3 text-sm text-ink shadow-card transition-[border-color,box-shadow,background-color] duration-150",
+          "focus-ring h-10 w-full rounded-xl border bg-surface px-3 text-sm text-ink shadow-card transition-[border-color,box-shadow,background-color] duration-200 ease-[var(--ease-settle)]",
           "placeholder:text-ink-subtle disabled:cursor-not-allowed disabled:opacity-60",
           "file:mr-3 file:rounded-md file:border-0 file:bg-surface-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-ink",
           invalid

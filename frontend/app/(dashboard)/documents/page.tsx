@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Reveal, motionVars } from "@/components/motion/reveal";
 
 const PAGE_SIZE = 10;
 
@@ -123,19 +124,24 @@ export default function DocumentsPage() {
         }
       />
 
-      <DocumentFilters
-        search={search}
-        onSearchChange={handleSearchChange}
-        documentType={documentType}
-        onDocumentTypeChange={handleDocumentTypeChange}
-        status={status}
-        onStatusChange={handleStatusChange}
-        onReset={handleResetFilters}
-        resultCount={total}
-        isLoading={isLoading}
-      />
+      <Reveal index={0} duration="0.6s">
+        <DocumentFilters
+          search={search}
+          onSearchChange={handleSearchChange}
+          documentType={documentType}
+          onDocumentTypeChange={handleDocumentTypeChange}
+          status={status}
+          onStatusChange={handleStatusChange}
+          onReset={handleResetFilters}
+          resultCount={total}
+          isLoading={isLoading}
+        />
+      </Reveal>
 
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden motion-settle"
+        style={motionVars({ index: 1 })}
+      >
         {error ? (
           <EmptyState
             tone="error"

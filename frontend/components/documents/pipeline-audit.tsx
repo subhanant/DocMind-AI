@@ -20,6 +20,7 @@ import { Alert } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { motionVars } from "@/components/motion/reveal";
 
 const STAGE_CONFIG: Record<
   ProcessingStageStatus,
@@ -124,7 +125,10 @@ export function PipelineAudit({
         </Alert>
       )}
 
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden motion-settle"
+        style={motionVars({ index: 0 })}
+      >
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
           <div className="flex items-center gap-2.5">
             <Activity className="h-4 w-4 text-brand-500" aria-hidden />
@@ -166,7 +170,8 @@ export function PipelineAudit({
                   return (
                     <li
                       key={`${stage.name}-${index}`}
-                      className="flex items-start gap-3 rounded-xl border border-line bg-surface-muted/50 p-4"
+                      className="flex items-start gap-3 rounded-xl border border-line bg-surface-muted/50 p-4 motion-settle"
+                      style={motionVars({ index: index + 1, duration: "0.5s" })}
                     >
                       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", config.iconClass)} />
                       <div className="min-w-0 flex-1">
@@ -212,14 +217,21 @@ export function PipelineAudit({
         </div>
       </Card>
 
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden motion-settle"
+        style={motionVars({ index: 4 })}
+      >
         <div className="flex items-center gap-2.5 border-b border-line px-5 py-4">
           <Cpu className="h-4 w-4 text-cyan-500" aria-hidden />
           <h2 className="text-sm font-semibold text-ink">Run metadata</h2>
         </div>
         <dl className="grid grid-cols-2 gap-px bg-line sm:grid-cols-3">
-          {facts.map((fact) => (
-            <div key={fact.label} className="bg-surface px-5 py-4">
+          {facts.map((fact, factIndex) => (
+            <div
+              key={fact.label}
+              className="bg-surface px-5 py-4 motion-fade"
+              style={motionVars({ index: factIndex, delay: 200, duration: "0.4s" })}
+            >
               <dt className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
                 {fact.label}
               </dt>
@@ -232,7 +244,10 @@ export function PipelineAudit({
       </Card>
 
       {extraction?.edit_history && extraction.edit_history.length > 0 && (
-        <Card className="overflow-hidden">
+        <Card
+          className="overflow-hidden motion-settle"
+          style={motionVars({ index: 5 })}
+        >
           <div className="flex items-center gap-2.5 border-b border-line px-5 py-4">
             <FileText className="h-4 w-4 text-amber-500" aria-hidden />
             <h2 className="text-sm font-semibold text-ink">
@@ -247,7 +262,11 @@ export function PipelineAudit({
               .slice()
               .reverse()
               .map((entry, index) => (
-                <li key={index} className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-3 text-xs">
+                <li
+                  key={index}
+                  className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-5 py-3 text-xs motion-fade"
+                  style={motionVars({ index: Math.min(index, 6), duration: "0.4s" })}
+                >
                   <span className="font-mono font-semibold text-ink">
                     {String(entry.field_path ?? "field")}
                   </span>

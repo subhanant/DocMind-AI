@@ -24,6 +24,12 @@ import { Card } from "@/components/ui/card";
 import { Alert } from "@/components/ui/alert";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  DrawRule,
+  MaskReveal,
+  Reveal,
+  motionVars,
+} from "@/components/motion/reveal";
 
 function toSummary(doc: RecentDocument): DocumentSummary {
   const extension = doc.original_filename.includes(".")
@@ -106,7 +112,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 sm:space-y-8">
       {/* Hero */}
-      <section className="relative overflow-hidden rounded-3xl border border-line bg-surface shadow-card">
+      <section
+        className="relative overflow-hidden rounded-3xl border border-line bg-surface shadow-card motion-settle"
+        style={motionVars({ index: 0 })}
+      >
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_120%_at_100%_0%,color-mix(in_oklab,var(--color-brand-500)_14%,transparent),transparent_55%)]"
@@ -122,15 +131,32 @@ export default function DashboardPage() {
               <Sparkles className="h-3 w-3" />
               AI extraction engine online
             </span>
-            <h1 className="mt-4 text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+            {/* MASK: the page title rises out of its clipping container. */}
+            <MaskReveal
+              as="h1"
+              className="mt-4 text-2xl font-bold tracking-tight text-ink sm:text-3xl"
+            >
               Welcome back, {firstName}
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-ink-muted">
+            </MaskReveal>
+
+            {/* DRAW: short accent rule that grows out from the title. */}
+            <DrawRule
+              className="mt-3 h-0.5 w-12 rounded-full bg-gradient-to-r from-brand-500 to-brand-500/20"
+              delay={220}
+            />
+
+            <p
+              className="mt-3 max-w-xl text-sm leading-relaxed text-ink-muted motion-settle"
+              style={motionVars({ index: 1, duration: "0.6s" })}
+            >
               Upload trade documents and DocMind AI classifies them, runs OCR and returns
               structured, confidence-scored fields in seconds.
             </p>
 
-            <div className="mt-5 flex flex-wrap items-center gap-2.5">
+            <div
+              className="mt-5 flex flex-wrap items-center gap-2.5 motion-settle"
+              style={motionVars({ index: 2, duration: "0.6s" })}
+            >
               <Link href="/upload">
                 <Button size="lg" className="gap-2">
                   <UploadCloud className="h-4 w-4" />
@@ -160,7 +186,11 @@ export default function DashboardPage() {
                   { label: "Structured field extraction", detail: "Confidence scored" },
                   { label: "Validation & review routing", detail: "Threshold checks" },
                 ].map((stage, index) => (
-                  <li key={stage.label} className="flex items-start gap-2.5">
+                  <li
+                    key={stage.label}
+                    className="flex items-start gap-2.5 motion-fade"
+                    style={motionVars({ index: index + 3, duration: "0.45s" })}
+                  >
                     <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-brand-600 text-[10px] font-bold text-white">
                       {index + 1}
                     </span>
@@ -193,43 +223,54 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatsCard
-          title="Total documents"
-          value={isLoading ? "—" : (stats?.total_documents ?? 0)}
-          description="Stored in your workspace"
-          icon={FileText}
-          color="brand"
-          isLoading={isLoading}
-        />
-        <StatsCard
-          title="Processed today"
-          value={isLoading ? "—" : (stats?.processed_today ?? 0)}
-          description="Completed since midnight"
-          icon={TrendingUp}
-          color="emerald"
-          isLoading={isLoading}
-        />
-        <StatsCard
-          title="In progress"
-          value={isLoading ? "—" : inProgress}
-          description="Queued for extraction"
-          icon={Clock3}
-          color="cyan"
-          isLoading={isLoading}
-        />
-        <StatsCard
-          title="Needs review"
-          value={isLoading ? "—" : (stats?.needs_review ?? 0)}
-          description="Below confidence threshold"
-          icon={AlertTriangle}
-          color="amber"
-          isLoading={isLoading}
-        />
+        <Reveal index={1} className="h-full">
+          <StatsCard
+            title="Total documents"
+            value={isLoading ? "—" : (stats?.total_documents ?? 0)}
+            description="Stored in your workspace"
+            icon={FileText}
+            color="brand"
+            isLoading={isLoading}
+          />
+        </Reveal>
+        <Reveal index={2} className="h-full">
+          <StatsCard
+            title="Processed today"
+            value={isLoading ? "—" : (stats?.processed_today ?? 0)}
+            description="Completed since midnight"
+            icon={TrendingUp}
+            color="emerald"
+            isLoading={isLoading}
+          />
+        </Reveal>
+        <Reveal index={3} className="h-full">
+          <StatsCard
+            title="In progress"
+            value={isLoading ? "—" : inProgress}
+            description="Queued for extraction"
+            icon={Clock3}
+            color="cyan"
+            isLoading={isLoading}
+          />
+        </Reveal>
+        <Reveal index={4} className="h-full">
+          <StatsCard
+            title="Needs review"
+            value={isLoading ? "—" : (stats?.needs_review ?? 0)}
+            description="Below confidence threshold"
+            icon={AlertTriangle}
+            color="amber"
+            isLoading={isLoading}
+          />
+        </Reveal>
       </div>
 
       {/* Content grid */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <Card className="overflow-hidden xl:col-span-2">
+        <Card
+          className="overflow-hidden xl:col-span-2 motion-settle"
+          style={motionVars({ index: 4 })}
+        >
           <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
             <div className="min-w-0">
               <h2 className="text-sm font-semibold text-ink">Recent documents</h2>
@@ -269,69 +310,73 @@ export default function DashboardPage() {
         </Card>
 
         <div className="space-y-6">
-          <PipelineHealth
-            total={stats?.total_documents ?? 0}
-            completed={stats?.total_completed ?? 0}
-            needsReview={stats?.needs_review ?? 0}
-            failed={stats?.total_failed ?? 0}
-            processing={stats?.currently_processing ?? 0}
-            isLoading={isLoading}
-          />
+          <Reveal index={5}>
+            <PipelineHealth
+              total={stats?.total_documents ?? 0}
+              completed={stats?.total_completed ?? 0}
+              needsReview={stats?.needs_review ?? 0}
+              failed={stats?.total_failed ?? 0}
+              processing={stats?.currently_processing ?? 0}
+              isLoading={isLoading}
+            />
+          </Reveal>
 
-          <Card>
-            <div className="border-b border-line px-5 py-4">
-              <h2 className="text-sm font-semibold text-ink">Quick actions</h2>
-              <p className="mt-0.5 text-xs text-ink-subtle">
-                Common tasks in your workspace
-              </p>
-            </div>
-            <div className="space-y-2 p-4">
-              {[
-                {
-                  href: "/upload",
-                  icon: UploadCloud,
-                  title: "Upload new documents",
-                  description: "Batch upload up to 10 files",
-                  tone: "text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/50",
-                },
-                {
-                  href: "/documents",
-                  icon: FileText,
-                  title: "Review extractions",
-                  description: "Inspect and correct extracted fields",
-                  tone: "text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50",
-                },
-                {
-                  href: "/email-connections",
-                  icon: Sparkles,
-                  title: "Inbox automations",
-                  description: "Connect Gmail or Outlook",
-                  tone: "text-cyan-600 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/50",
-                },
-              ].map((action) => (
-                <Link
-                  key={action.href + action.title}
-                  href={action.href}
-                  className="focus-ring group flex items-center gap-3 rounded-xl border border-line p-3 transition-[border-color,background-color,transform] duration-150 hover:-translate-y-0.5 hover:border-line-strong hover:bg-surface-hover"
-                >
-                  <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4 ${action.tone}`}
+          <Reveal index={6}>
+            <Card>
+              <div className="border-b border-line px-5 py-4">
+                <h2 className="text-sm font-semibold text-ink">Quick actions</h2>
+                <p className="mt-0.5 text-xs text-ink-subtle">
+                  Common tasks in your workspace
+                </p>
+              </div>
+              <div className="space-y-2 p-4">
+                {[
+                  {
+                    href: "/upload",
+                    icon: UploadCloud,
+                    title: "Upload new documents",
+                    description: "Batch upload up to 10 files",
+                    tone: "text-brand-600 dark:text-brand-300 bg-brand-50 dark:bg-brand-950/50",
+                  },
+                  {
+                    href: "/documents",
+                    icon: FileText,
+                    title: "Review extractions",
+                    description: "Inspect and correct extracted fields",
+                    tone: "text-emerald-600 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50",
+                  },
+                  {
+                    href: "/email-connections",
+                    icon: Sparkles,
+                    title: "Inbox automations",
+                    description: "Connect Gmail or Outlook",
+                    tone: "text-cyan-600 dark:text-cyan-300 bg-cyan-50 dark:bg-cyan-950/50",
+                  },
+                ].map((action) => (
+                  <Link
+                    key={action.href + action.title}
+                    href={action.href}
+                    className="focus-ring group flex items-center gap-3 rounded-xl border border-line p-3 transition-[border-color,background-color,transform,box-shadow] duration-200 ease-[var(--ease-settle)] hover:-translate-y-0.5 hover:border-line-strong hover:bg-surface-hover hover:shadow-card"
                   >
-                    <action.icon />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-ink">
-                      {action.title}
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg [&_svg]:size-4 ${action.tone}`}
+                    >
+                      <action.icon />
                     </span>
-                    <span className="block truncate text-[11px] text-ink-subtle">
-                      {action.description}
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink">
+                        {action.title}
+                      </span>
+                      <span className="block truncate text-[11px] text-ink-subtle">
+                        {action.description}
+                      </span>
                     </span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-transform duration-150 group-hover:translate-x-0.5 group-hover:text-ink" />
-                </Link>
-              ))}
-            </div>
-          </Card>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-ink-subtle transition-[transform,color] duration-200 ease-[var(--ease-settle)] group-hover:translate-x-0.5 group-hover:text-ink" />
+                  </Link>
+                ))}
+              </div>
+            </Card>
+          </Reveal>
         </div>
       </div>
     </div>

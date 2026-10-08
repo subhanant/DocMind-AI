@@ -80,7 +80,7 @@ export function Tr({
   return (
     <tr
       className={cn(
-        "border-b border-line/70 transition-colors last:border-0 hover:bg-surface-hover",
+        "border-b border-line/70 transition-colors duration-200 last:border-0 hover:bg-surface-hover",
         className
       )}
       {...props}

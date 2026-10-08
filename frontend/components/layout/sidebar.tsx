@@ -17,6 +17,8 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { cn, getInitials } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { motionVars } from "@/components/motion/reveal";
+import { DecodeText } from "@/components/motion/decode-text";
 
 type NavItem = { name: string; href: string; icon: React.ElementType };
 
@@ -75,7 +77,7 @@ export function Sidebar({
         )}
       >
         {/* Brand */}
-        <div className="flex h-16 items-center gap-3 border-b border-line px-5">
+        <div className="flex h-16 items-center gap-3 border-b border-line px-5 motion-settle" style={motionVars({ index: 0 })}>
           <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-brand-500 via-brand-600 to-cyan-500 text-white shadow-brand">
             <Sparkles className="h-5 w-5" />
             <span className="absolute inset-0 rounded-xl ring-1 ring-inset ring-white/25" />
@@ -106,10 +108,19 @@ export function Sidebar({
 
         {/* Navigation */}
         <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
-          {NAV_SECTIONS.map((section) => (
-            <div key={section.label} className="space-y-1">
+          {NAV_SECTIONS.map((section, sectionIndex) => (
+            <div
+              key={section.label}
+              className="space-y-1 motion-settle"
+              style={motionVars({ index: sectionIndex + 1 })}
+            >
               <p className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-subtle">
-                {section.label}
+                {/* DECODE: short uppercase section labels only. */}
+                <DecodeText
+                  text={section.label}
+                  startDelay={140 + sectionIndex * 90}
+                  duration={420}
+                />
               </p>
               {section.items.map((item) => {
                 const active = isActive(item.href);
@@ -121,17 +132,20 @@ export function Sidebar({
                     onClick={onClose}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "focus-ring group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-150",
+                      "focus-ring group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-[background-color,color,transform] duration-200 ease-[var(--ease-settle)]",
                       active
                         ? "bg-brand-50 text-brand-700 dark:bg-brand-950/50 dark:text-brand-200"
-                        : "text-ink-muted hover:bg-surface-hover hover:text-ink"
+                        : "text-ink-muted hover:translate-x-0.5 hover:bg-surface-hover hover:text-ink"
                     )}
                   >
                     {active && (
                       <span
                         aria-hidden
-                        className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r-full bg-brand-600 dark:bg-brand-400"
-                      />
+                        className="absolute inset-y-0 left-0 flex w-0.5 items-center"
+                      >
+                        {/* DRAW: the accent grows down from the top edge. */}
+                        <span className="h-5 w-0.5 rounded-r-full bg-brand-600 motion-draw-y dark:bg-brand-400" />
+                      </span>
                     )}
                     <Icon
                       className={cn(
@@ -150,7 +164,10 @@ export function Sidebar({
         </nav>
 
         {/* Pipeline status */}
-        <div className="mx-3 mb-3 rounded-xl border border-line bg-surface-muted p-3">
+        <div
+          className="mx-3 mb-3 rounded-xl border border-line bg-surface-muted p-3 motion-settle"
+          style={motionVars({ index: 4 })}
+        >
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ring rounded-full bg-emerald-400" />
@@ -167,7 +184,10 @@ export function Sidebar({
         </div>
 
         {/* Account footer */}
-        <div className="border-t border-line p-3">
+        <div
+          className="border-t border-line p-3 motion-settle"
+          style={motionVars({ index: 5 })}
+        >
           <div className="flex items-center gap-2.5 rounded-xl bg-surface-muted p-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-xs font-bold text-white shadow-soft">
               {getInitials(user?.full_name)}

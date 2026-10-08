@@ -94,7 +94,7 @@ export function TabsTrigger({
       onClick={() => ctx.onValueChange(value)}
       disabled={disabled}
       className={cn(
-        "focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 select-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-4",
+        "focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-200 ease-[var(--ease-settle)] select-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-4",
         isActive
           ? "bg-surface text-ink shadow-card"
           : "text-ink-muted hover:bg-surface-hover hover:text-ink",

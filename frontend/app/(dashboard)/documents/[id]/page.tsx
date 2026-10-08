@@ -35,6 +35,8 @@ import {
   formatDate,
   formatDocType,
 } from "@/lib/utils";
+import { MaskReveal, motionVars } from "@/components/motion/reveal";
+import { ProcessingStrip } from "@/components/motion/processing-strip";
 
 const IMAGE_TYPES = ["jpg", "jpeg", "png", "webp"];
 
@@ -248,7 +250,10 @@ export default function DocumentDetailsPage({
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 pb-10">
       {/* Top bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div
+        className="flex flex-wrap items-center justify-between gap-3 motion-fade"
+        style={motionVars({ duration: "0.5s" })}
+      >
         <Link
           href="/documents"
           className="focus-ring inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold text-ink-muted transition-colors hover:text-ink"
@@ -281,14 +286,21 @@ export default function DocumentDetailsPage({
       </div>
 
       {/* Header */}
-      <Card className="overflow-hidden">
+      <Card
+        className="overflow-hidden motion-settle"
+        style={motionVars({ index: 0 })}
+      >
         <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
           <div className="flex min-w-0 items-start gap-4">
             <FileTypeIcon fileType={doc.file_type} className="h-12 w-12 [&_svg]:size-6" />
             <div className="min-w-0">
-              <h1 className="break-words text-lg font-bold tracking-tight text-ink">
-                {doc.original_filename}
-              </h1>
+              <MaskReveal
+                as="h1"
+                className="text-lg font-bold tracking-tight text-ink"
+                delay={120}
+              >
+                <span className="break-words">{doc.original_filename}</span>
+              </MaskReveal>
               <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-muted">
                 <span className="rounded-md border border-line bg-surface-muted px-2 py-0.5 font-semibold text-ink">
                   {formatDocType(doc.document_type)}
@@ -314,9 +326,12 @@ export default function DocumentDetailsPage({
         </div>
 
         {isProcessing && (
-          <div className="flex items-center gap-2.5 border-t border-line bg-brand-50/60 px-5 py-3 text-xs text-brand-800 dark:bg-brand-950/30 dark:text-brand-200">
-            <Sparkles className="h-4 w-4 shrink-0 animate-pulse" />
-            The AI pipeline is working on this document. Results refresh automatically.
+          <div className="border-t border-line bg-brand-50/60 dark:bg-brand-950/30">
+            <ProcessingStrip className="h-0.5 rounded-none bg-brand-100 dark:bg-brand-950" />
+            <div className="flex items-center gap-2.5 px-5 py-3 text-xs text-brand-800 dark:text-brand-200">
+              <Sparkles className="h-4 w-4 shrink-0 animate-pulse motion-essential" />
+              The AI pipeline is working on this document. Results refresh automatically.
+            </div>
           </div>
         )}
       </Card>

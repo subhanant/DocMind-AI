@@ -1,6 +1,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { FileSearch, Gauge, Quote, Sparkles } from "lucide-react";
+import {
+  DrawRule,
+  MaskReveal,
+  Reveal,
+  motionVars,
+} from "@/components/motion/reveal";
 
 const HIGHLIGHTS = [
   {
@@ -64,18 +70,37 @@ export function AuthShell({
         </div>
 
         <div className="relative px-10">
-          <h2 className="max-w-md text-3xl font-bold leading-tight tracking-tight text-white">
+          {/* MASK: the hero headline rises out of its clipping container. */}
+          <MaskReveal
+            as="h2"
+            className="max-w-md text-3xl font-bold leading-tight tracking-tight text-white"
+            duration="0.9s"
+          >
             Document intelligence,{" "}
             <span className="text-gradient">extracted in seconds</span>
-          </h2>
-          <p className="mt-4 max-w-md text-sm leading-relaxed text-slate-300/90">
+          </MaskReveal>
+
+          {/* DRAW */}
+          <DrawRule
+            className="mt-5 h-0.5 w-12 rounded-full bg-gradient-to-r from-brand-400 to-brand-400/10"
+            delay={260}
+          />
+
+          <p
+            className="mt-4 max-w-md text-sm leading-relaxed text-slate-300/90 motion-settle"
+            style={motionVars({ index: 1, duration: "0.7s" })}
+          >
             Upload trade documents and get structured, validated, confidence-scored data back —
             ready for your systems.
           </p>
 
           <ul className="mt-10 space-y-6">
-            {HIGHLIGHTS.map((highlight) => (
-              <li key={highlight.title} className="flex gap-4">
+            {HIGHLIGHTS.map((highlight, highlightIndex) => (
+              <li
+                key={highlight.title}
+                className="flex gap-4 motion-settle"
+                style={motionVars({ index: highlightIndex + 1, duration: "0.6s" })}
+              >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-brand-200 [&_svg]:size-5">
                   <highlight.icon />
                 </span>
@@ -123,14 +148,35 @@ export function AuthShell({
             </span>
           </div>
 
-          <h1 className="text-2xl font-bold tracking-tight text-ink">{title}</h1>
-          <p className="mt-2 text-sm leading-relaxed text-ink-muted">{subtitle}</p>
+          {/* MASK: page title */}
+          <MaskReveal
+            as="h1"
+            className="text-2xl font-bold tracking-tight text-ink"
+            duration="0.85s"
+          >
+            {title}
+          </MaskReveal>
+          <p
+            className="mt-2 text-sm leading-relaxed text-ink-muted motion-settle"
+            style={motionVars({ index: 1, duration: "0.6s" })}
+          >
+            {subtitle}
+          </p>
 
-          <div className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-8">
+          <Reveal
+            index={2}
+            duration="0.6s"
+            className="mt-8 rounded-2xl border border-line bg-surface p-6 shadow-card sm:p-8"
+          >
             {children}
-          </div>
+          </Reveal>
 
-          <div className="mt-6 text-center text-sm text-ink-muted">{footer}</div>
+          <div
+            className="mt-6 text-center text-sm text-ink-muted motion-fade"
+            style={motionVars({ delay: 320, duration: "0.5s" })}
+          >
+            {footer}
+          </div>
         </div>
       </div>
     </div>
