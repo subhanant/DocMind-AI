@@ -12,8 +12,15 @@ import {
   User,
 } from "@/types";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/**
+ * Base URL for every request. Defaults to the local FastAPI service.
+ *
+ * `??` (not `||`) is deliberate: setting `NEXT_PUBLIC_API_URL=""` resolves to
+ * same-origin relative URLs (`/api/...`), which is what you want when the
+ * Next.js server proxies the API (see `API_PROXY_TARGET` in next.config.ts).
+ * Leaving it unset keeps the existing localhost:8000 behaviour.
+ */
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const API_REQUEST_TIMEOUT_MS = 120_000;
 
 class ApiError extends Error {

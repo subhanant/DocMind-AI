@@ -1,5 +1,29 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## API configuration
+
+The app talks to the DocMind AI FastAPI service. There are two supported modes:
+
+**1. Direct (default)** — the browser calls the backend origin directly.
+Requires the backend's CORS config to allow the frontend origin.
+
+```bash
+# .env.local
+NEXT_PUBLIC_API_URL=http://localhost:8000   # default when unset
+```
+
+**2. Same-origin proxy** — Next.js forwards `/api/*` to the backend, so the
+browser only ever talks to one origin (no CORS, works behind a single public
+hostname such as a preview or container).
+
+```bash
+# .env.local
+NEXT_PUBLIC_API_URL=
+API_PROXY_TARGET=http://127.0.0.1:8000
+```
+
+When `API_PROXY_TARGET` is unset, no rewrite is registered and mode 1 applies.
+
 ## Getting Started
 
 First, run the development server:
