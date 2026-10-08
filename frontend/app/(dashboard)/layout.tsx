@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
+import { Sparkles } from "lucide-react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { useAuth } from "@/lib/auth-context";
-import { Loader2 } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -18,18 +18,28 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    // If auth state resolved and no user, redirect to login
     if (!isLoading && !user) {
-      router.push("/login");
+      router.replace("/login");
     }
   }, [user, isLoading, router, pathname]);
 
+  // Close the mobile drawer whenever the route changes.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setSidebarOpen(false));
+    return () => cancelAnimationFrame(frame);
+  }, [pathname]);
+
   if (isLoading) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <p className="text-xs font-medium text-slate-500">Loading DocuMind AI...</p>
+      <div className="flex h-screen w-full items-center justify-center bg-canvas">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-cyan-500 text-white shadow-brand">
+            <Sparkles className="h-6 w-6 animate-pulse" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-ink">DocMind AI</p>
+            <p className="mt-0.5 text-xs text-ink-subtle">Preparing your workspace…</p>
+          </div>
         </div>
       </div>
     );
@@ -39,13 +49,21 @@ export default function DashboardLayout({
     return null;
   }
 
+  // The wrapper intentionally has no bg-* class: the wash below sits at -z-10 and
+  // would otherwise be painted over by the wrapper's own background.
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950">
+    <div className="min-h-screen">
+      {/* Ambient background wash */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 top-0 -z-10 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,color-mix(in_oklab,var(--color-brand-500)_14%,transparent),transparent_70%)]"
+      />
+
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="lg:pl-64 flex flex-col min-h-screen">
+      <div className="flex min-h-screen flex-col lg:pl-64">
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6 sm:py-8">
           {children}
         </main>
       </div>

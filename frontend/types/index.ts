@@ -154,11 +154,17 @@ export interface ExtractionResult {
   id: string;
   document_id: string;
   schema_version: string;
+  // Extraction payloads are schema-driven and shape-agnostic, so `any` is
+  // deliberate here: the view resolves fields dynamically at render time.
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   extracted_json: Record<string, any> | null;
   confidence_score: number | null;
   validation_status: "pending" | "valid" | "invalid" | "partial";
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   field_evidence?: Record<string, ExtractedField<any>>;
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   edit_history?: Array<Record<string, any>>;
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
   processing_metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
@@ -175,15 +181,68 @@ export interface NotificationItem {
   created_at: string;
 }
 
+/**
+ * Mirrors `DashboardStats` in `backend/app/schemas/notification.py`.
+ * (Previously these names were out of sync with the API and always rendered as 0.)
+ */
 export interface DashboardStats {
   total_documents: number;
   processed_today: number;
-  processing: number;
+  currently_processing: number;
   needs_review: number;
-  completed: number;
-  failed: number;
-  by_type: Record<string, number>;
+  total_completed: number;
+  total_failed: number;
 }
+
+/**
+ * Mirrors `RecentDocumentItem` in `backend/app/schemas/notification.py`.
+ * The dashboard endpoint returns a slim projection, not a full `DocumentItem`.
+ */
+export interface RecentDocument {
+  id: string;
+  original_filename: string;
+  document_type: DocumentType;
+  processing_status: DocumentStatus;
+  extraction_confidence: number | null;
+  uploaded_at: string;
+  file_size: number;
+}
+
+/** The minimal shape every document list/table needs to render a row. */
+export interface DocumentSummary {
+  id: string;
+  original_filename: string;
+  file_type: string | null;
+  file_size: number;
+  document_type: DocumentType;
+  processing_status: DocumentStatus;
+  extraction_confidence: number | null;
+  uploaded_at: string;
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type ProcessingStageStatus =
+  | "completed"
+  | "in_progress"
+  | "pending"
+  | "failed";
+
+export interface ProcessingStage {
+  name: string;
+  status: ProcessingStageStatus;
+  message?: string | null;
+  details?: Record<string, any> | null;
+}
+
+export interface ProcessingStatus {
+  document_id: string;
+  overall_status: string;
+  progress_percentage: number;
+  current_stage: string;
+  stages: ProcessingStage[];
+  error_message?: string | null;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export interface PaginatedResponse<T> {
   items: T[];

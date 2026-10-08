@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import { Search, X, Filter } from "lucide-react";
+import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
 import { DocumentStatus, DocumentType } from "@/types";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 interface DocumentFiltersProps {
   search: string;
@@ -14,6 +15,8 @@ interface DocumentFiltersProps {
   status: DocumentStatus | "";
   onStatusChange: (val: DocumentStatus | "") => void;
   onReset: () => void;
+  resultCount?: number;
+  isLoading?: boolean;
 }
 
 const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
@@ -23,10 +26,10 @@ const DOCUMENT_TYPES: { value: DocumentType; label: string }[] = [
   { value: "purchase_order", label: "Purchase Order" },
   { value: "certificate_of_origin", label: "Certificate of Origin" },
   { value: "delivery_challan", label: "Delivery Challan" },
-  { value: "contract", label: "Contract" },
-  { value: "receipt", label: "Receipt" },
   { value: "customs_document", label: "Customs Document" },
   { value: "shipping_document", label: "Shipping Document" },
+  { value: "contract", label: "Contract" },
+  { value: "receipt", label: "Receipt" },
   { value: "general_document", label: "General Document" },
 ];
 
@@ -47,70 +50,71 @@ export function DocumentFilters({
   status,
   onStatusChange,
   onReset,
+  resultCount,
+  isLoading,
 }: DocumentFiltersProps) {
-  const hasActiveFilters = search || documentType || status;
+  const hasActiveFilters = Boolean(search || documentType || status);
 
   return (
-    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-sm">
-      <div className="flex flex-1 items-center gap-2 max-w-md">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <Input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Search by filename or ID..."
-            className="pl-9 text-xs h-9 bg-slate-50/50 dark:bg-slate-800/50"
-          />
-          {search && (
-            <button
-              onClick={() => onSearchChange("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+    <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface p-4 shadow-card lg:flex-row lg:items-center">
+      <div className="flex flex-1 items-center gap-2 lg:max-w-sm">
+        <Input
+          type="search"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search by filename or ID…"
+          aria-label="Search documents"
+          leadingIcon={<Search />}
+          className="[&::-webkit-search-cancel-button]:hidden"
+        />
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Document Type Filter */}
-        <select
-          value={documentType}
-          onChange={(e) => onDocumentTypeChange(e.target.value as DocumentType | "")}
-          className="h-9 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-        >
-          <option value="">All Document Types</option>
-          {DOCUMENT_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
+      <div className="flex flex-1 flex-wrap items-center gap-2">
+        <div className="min-w-[160px] flex-1">
+          <Select
+            size="sm"
+            aria-label="Filter by document type"
+            value={documentType}
+            onChange={(event) => onDocumentTypeChange(event.target.value as DocumentType | "")}
+            placeholder="All document types"
+            options={DOCUMENT_TYPES}
+          />
+        </div>
 
-        {/* Status Filter */}
-        <select
-          value={status}
-          onChange={(e) => onStatusChange(e.target.value as DocumentStatus | "")}
-          className="h-9 px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-        >
-          <option value="">All Statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+        <div className="min-w-[140px] flex-1">
+          <Select
+            size="sm"
+            aria-label="Filter by status"
+            value={status}
+            onChange={(event) => onStatusChange(event.target.value as DocumentStatus | "")}
+            placeholder="All statuses"
+            options={STATUSES}
+          />
+        </div>
 
         {hasActiveFilters && (
           <Button
             variant="ghost"
             size="sm"
             onClick={onReset}
-            className="h-9 px-2.5 text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100"
+            className="text-ink-muted hover:text-ink"
           >
-            <X className="w-3.5 h-3.5 mr-1" />
+            <RotateCcw className="h-3.5 w-3.5" />
             Reset
           </Button>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 border-t border-line pt-3 text-xs text-ink-subtle lg:border-0 lg:pt-0">
+        <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
+        {isLoading ? (
+          <span>Filtering…</span>
+        ) : (
+          <span className="tabular">
+            {resultCount !== undefined
+              ? `${resultCount} document${resultCount === 1 ? "" : "s"}`
+              : "Filtered results"}
+          </span>
         )}
       </div>
     </div>

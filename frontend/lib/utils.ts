@@ -48,6 +48,32 @@ export function formatConfidence(score: number | null | undefined): string {
   return `${Math.round(score * 100)}%`;
 }
 
+/** Full timestamp for detail views and tooltips. */
+export function formatDateTime(dateString: string | null | undefined): string {
+  if (!dateString) return "—";
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+/** Two-letter avatar fallback for the current user. */
+export function getInitials(name: string | null | undefined): string {
+  const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 export function formatDocType(type: string): string {
   const map: Record<string, string> = {
     bill_of_lading: "Bill of Lading",

@@ -1,43 +1,123 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, use } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  FileText,
-  Clock,
-  Calendar,
-  HardDrive,
-  Trash2,
-  FileSpreadsheet,
-  FileCode,
-  FileCheck,
-  CheckCircle2,
-  Layers,
-  Sparkles,
-  ExternalLink,
+  Columns,
   Download,
   Eye,
-  Columns,
+  ExternalLink,
+  FileWarning,
+  Layers,
   Maximize2,
+  Sparkles,
+  Trash2,
 } from "lucide-react";
 import { DocumentItem, ExtractionResult } from "@/types";
 import { api } from "@/lib/api";
 import { DocumentStatusBadge } from "@/components/documents/document-status-badge";
 import { ExtractionView } from "@/components/documents/extraction-view";
-import { formatBytes, formatDocType, formatDate } from "@/lib/utils";
+import { FileTypeIcon } from "@/components/documents/file-icon";
+import { PipelineAudit } from "@/components/documents/pipeline-audit";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  cn,
+  formatBytes,
+  formatDateTime,
+  formatDate,
+  formatDocType,
+} from "@/lib/utils";
+
+const IMAGE_TYPES = ["jpg", "jpeg", "png", "webp"];
+
+function DocumentPreview({
+  doc,
+  fileUrl,
+  height = "h-[720px]",
+}: {
+  doc: DocumentItem;
+  fileUrl: string;
+  height?: string;
+}) {
+  const fileType = (doc.file_type ?? "").toLowerCase();
+
+  return (
+    <div className={cn("w-full bg-surface-muted", height)}>
+      {fileType === "pdf" ? (
+        <iframe
+          src={`${fileUrl}#toolbar=0`}
+          className="h-full w-full border-none"
+          title={`Preview of ${doc.original_filename}`}
+        />
+      ) : IMAGE_TYPES.includes(fileType) ? (
+        <div className="flex h-full w-full items-center justify-center overflow-auto p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fileUrl}
+            alt={doc.original_filename}
+            className="max-h-full max-w-full rounded-lg object-contain shadow-lift"
+          />
+        </div>
+      ) : (
+        <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+          <FileWarning className="mb-3 h-12 w-12 text-ink-subtle" />
+          <p className="text-sm font-medium text-ink">Preview unavailable</p>
+          <p className="mt-1 text-xs text-ink-muted">
+            {doc.file_type ? `.${doc.file_type}` : "This file type"} cannot be rendered inline.
+          </p>
+          <a href={fileUrl} download={doc.original_filename} className="mt-4">
+            <Button size="sm" variant="outline">
+              <Download className="h-3.5 w-3.5" />
+              Download file
+            </Button>
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-5 w-48" />
+      <Card className="p-6">
+        <div className="flex items-start gap-4">
+          <Skeleton className="h-12 w-12 rounded-xl" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-5 w-2/3" />
+            <Skeleton className="h-3 w-1/3" />
+          </div>
+          <Skeleton className="h-6 w-24 rounded-full" />
+        </div>
+      </Card>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <Skeleton key={index} className="h-56 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function DocumentDetailsPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const resolvedParams = use(params);
   const router = useRouter();
+  const toast = useToast();
+  const confirm = useConfirm();
+
+  const [documentId, setDocumentId] = useState<string | null>(null);
   const [doc, setDoc] = useState<DocumentItem | null>(null);
   const [extraction, setExtraction] = useState<ExtractionResult | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -45,229 +125,224 @@ export default function DocumentDetailsPage({
   const [activeTab, setActiveTab] = useState("extracted");
   const [sideBySide, setSideBySide] = useState(false);
 
-  const loadData = useCallback(async () => {
-    try {
-      setError(null);
-      const [docData, extData] = await Promise.all([
-        api.documents.get(resolvedParams.id),
-        api.documents.getExtraction(resolvedParams.id),
-      ]);
-      setDoc(docData);
-      setExtraction(extData);
-    } catch {
-      setError("Document not found or could not be loaded.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [resolvedParams.id]);
+  // Next 16 passes route params as a promise — unwrap once, then drive state from it.
+  useEffect(() => {
+    let active = true;
+    params.then(({ id }) => {
+      if (active) setDocumentId(id);
+    });
+    return () => {
+      active = false;
+    };
+  }, [params]);
+
+  const loadData = useCallback(
+    async (id: string) => {
+      try {
+        setError(null);
+        const [docData, extData] = await Promise.all([
+          api.documents.get(id),
+          api.documents.getExtraction(id),
+        ]);
+        setDoc(docData);
+        setExtraction(extData);
+      } catch {
+        setError("This document could not be found or has been removed.");
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    setIsLoading(true);
-    loadData();
-  }, [loadData]);
+    if (!documentId) return;
+    const timeout = setTimeout(() => {
+      setIsLoading(true);
+      void loadData(documentId);
+    }, 0);
+    return () => clearTimeout(timeout);
+  }, [documentId, loadData]);
 
-  // Polling if document is queued or processing
+  // Poll while the pipeline is still working on this document.
   useEffect(() => {
-    if (!doc || (doc.processing_status !== "queued" && doc.processing_status !== "processing")) {
+    if (!documentId || !doc) return;
+    if (doc.processing_status !== "queued" && doc.processing_status !== "processing") {
       return;
     }
 
     const interval = setInterval(async () => {
       try {
         const [docData, extData] = await Promise.all([
-          api.documents.get(resolvedParams.id),
-          api.documents.getExtraction(resolvedParams.id),
+          api.documents.get(documentId),
+          api.documents.getExtraction(documentId),
         ]);
         setDoc(docData);
-        if (extData && extData.extracted_json) {
-          setExtraction(extData);
-        }
+        if (extData && extData.extracted_json) setExtraction(extData);
       } catch {
-        // ignore polling errors
+        // Polling failures are transient; the next tick will retry.
       }
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [doc, resolvedParams.id]);
+  }, [doc, documentId]);
 
   const handleExtractionUpdated = async (newExt: ExtractionResult) => {
     setExtraction(newExt);
+    if (!documentId) return;
     try {
-      const updatedDoc = await api.documents.get(resolvedParams.id);
-      setDoc(updatedDoc);
+      setDoc(await api.documents.get(documentId));
     } catch {
-      setDoc((d) => (d ? { ...d, processing_status: "completed" } : null));
+      setDoc((current) => (current ? { ...current, processing_status: "completed" } : null));
     }
   };
 
   const handleDelete = async () => {
     if (!doc) return;
-    if (!confirm(`Are you sure you want to delete "${doc.original_filename}"?`)) {
-      return;
-    }
+    const confirmed = await confirm({
+      title: "Delete this document?",
+      description: `“${doc.original_filename}” and its extracted data will be permanently removed.`,
+      confirmLabel: "Delete document",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
     try {
       await api.documents.delete(doc.id);
+      toast.success("Document deleted", `"${doc.original_filename}" was removed.`);
       router.push("/documents");
     } catch {
-      alert("Failed to delete document.");
+      toast.error("Delete failed", "The document could not be removed.");
     }
   };
 
-  const getFileIcon = (fileType: string | null | undefined) => {
-    switch ((fileType ?? "").toLowerCase()) {
-      case "pdf":
-        return <FileText className="w-6 h-6 text-rose-500" />;
-      case "xlsx":
-      case "xls":
-      case "csv":
-        return <FileSpreadsheet className="w-6 h-6 text-emerald-500" />;
-      case "docx":
-      case "doc":
-        return <FileCode className="w-6 h-6 text-blue-500" />;
-      default:
-        return <FileCheck className="w-6 h-6 text-slate-500" />;
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="py-24 text-center">
-        <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-solid border-blue-600 border-r-transparent mb-3" />
-        <p className="text-xs text-slate-400">Loading document details...</p>
-      </div>
-    );
+  if (isLoading || !documentId) {
+    return <DetailSkeleton />;
   }
 
   if (error || !doc) {
     return (
-      <div className="py-20 text-center max-w-md mx-auto">
-        <FileText className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-          Document Not Found
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">
-          {error || "The requested document does not exist or has been removed."}
-        </p>
-        <Link href="/documents">
-          <Button variant="outline" size="sm">
-            <ArrowLeft className="w-3.5 h-3.5 mr-1" /> Back to Documents
-          </Button>
-        </Link>
-      </div>
+      <Card className="mx-auto max-w-lg">
+        <EmptyState
+          tone="error"
+          icon={FileWarning}
+          title="Document not found"
+          description={error ?? "The requested document does not exist or has been removed."}
+          action={
+            <Link href="/documents">
+              <Button variant="outline" size="sm">
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Back to documents
+              </Button>
+            </Link>
+          }
+        />
+      </Card>
     );
   }
 
   const fileUrl = api.documents.getFileUrl(doc.id);
+  const isProcessing =
+    doc.processing_status === "queued" || doc.processing_status === "processing";
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12">
-      {/* Top Navigation & Actions */}
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-[1400px] space-y-6 pb-10">
+      {/* Top bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/documents"
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+          className="focus-ring inline-flex items-center gap-1.5 rounded-lg text-xs font-semibold text-ink-muted transition-colors hover:text-ink"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Documents
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Back to documents
         </Link>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSideBySide(!sideBySide)}
-            className="gap-1.5 text-xs h-8 border-slate-200 dark:border-slate-800 shadow-sm"
+            onClick={() => setSideBySide((value) => !value)}
+            className="gap-1.5"
           >
-            <Columns className="w-3.5 h-3.5 text-blue-500" />
-            {sideBySide ? "Single View" : "Side-by-Side Preview"}
+            <Columns className="h-3.5 w-3.5 text-brand-500" />
+            {sideBySide ? "Single view" : "Side-by-side"}
           </Button>
-
           <a href={fileUrl} target="_blank" rel="noreferrer">
-            <Button variant="outline" size="sm" className="gap-1.5 text-xs h-8">
-              <Download className="w-3.5 h-3.5 text-slate-500" /> Download Original
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Download className="h-3.5 w-3.5" />
+              Download
             </Button>
           </a>
-
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={handleDelete}
-            className="gap-1.5 text-xs h-8"
-          >
-            <Trash2 className="w-3.5 h-3.5" /> Delete
+          <Button variant="destructive" size="sm" onClick={handleDelete} className="gap-1.5">
+            <Trash2 className="h-3.5 w-3.5" />
+            Delete
           </Button>
         </div>
       </div>
 
-      {/* Document Header Card */}
-      <div className="p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0 shadow-inner">
-            {getFileIcon(doc.file_type)}
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-slate-900 dark:text-white break-all">
-              {doc.original_filename}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2.5 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-              <span className="font-semibold text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                {formatDocType(doc.document_type)}
-              </span>
-              <span>•</span>
-              <span>{formatBytes(doc.file_size)}</span>
-              <span>•</span>
-              <span>Uploaded {formatDate(doc.uploaded_at)}</span>
+      {/* Header */}
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <FileTypeIcon fileType={doc.file_type} className="h-12 w-12 [&_svg]:size-6" />
+            <div className="min-w-0">
+              <h1 className="break-words text-lg font-bold tracking-tight text-ink">
+                {doc.original_filename}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-muted">
+                <span className="rounded-md border border-line bg-surface-muted px-2 py-0.5 font-semibold text-ink">
+                  {formatDocType(doc.document_type)}
+                </span>
+                <span className="tabular">{formatBytes(doc.file_size)}</span>
+                <span aria-hidden>·</span>
+                <time dateTime={doc.uploaded_at} title={formatDateTime(doc.uploaded_at)}>
+                  Uploaded {formatDate(doc.uploaded_at)}
+                </time>
+                {doc.processed_at && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <time dateTime={doc.processed_at} title={formatDateTime(doc.processed_at)}>
+                      Processed {formatDate(doc.processed_at)}
+                    </time>
+                  </>
+                )}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
           <DocumentStatusBadge status={doc.processing_status} />
         </div>
-      </div>
 
-      {/* Main Content Area: Side-by-Side or Tabs */}
+        {isProcessing && (
+          <div className="flex items-center gap-2.5 border-t border-line bg-brand-50/60 px-5 py-3 text-xs text-brand-800 dark:bg-brand-950/30 dark:text-brand-200">
+            <Sparkles className="h-4 w-4 shrink-0 animate-pulse" />
+            The AI pipeline is working on this document. Results refresh automatically.
+          </div>
+        )}
+      </Card>
+
+      {/* Content */}
       {sideBySide ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-          {/* Left Column: Live Document Preview */}
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm sticky top-6">
-            <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-                <Eye className="w-4 h-4 text-blue-500" />
-                Original Document Stream
-              </div>
-              <a href={fileUrl} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1">
-                Open in new tab <ExternalLink className="w-3 h-3" />
+        <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
+          <Card className="overflow-hidden xl:sticky xl:top-24">
+            <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-muted/60 px-5 py-3">
+              <span className="flex items-center gap-2 text-xs font-semibold text-ink">
+                <Eye className="h-3.5 w-3.5 text-brand-500" />
+                Original document
+              </span>
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="focus-ring inline-flex items-center gap-1 rounded text-[11px] font-semibold text-brand-600 hover:underline dark:text-brand-300"
+              >
+                Open in new tab
+                <ExternalLink className="h-3 w-3" />
               </a>
             </div>
-            <div className="h-[750px] w-full bg-slate-100 dark:bg-slate-950">
-              {(doc.file_type ?? "").toLowerCase() === "pdf" ? (
-                <iframe
-                  src={`${fileUrl}#toolbar=0`}
-                  className="w-full h-full border-none"
-                  title="PDF Preview"
-                />
-              ) : ["jpg", "jpeg", "png", "webp"].includes((doc.file_type ?? "").toLowerCase()) ? (
-                <div className="w-full h-full flex items-center justify-center p-4 overflow-auto">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={fileUrl}
-                    alt={doc.original_filename}
-                    className="max-h-full max-w-full object-contain rounded-lg shadow-md"
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                  <FileText className="w-12 h-12 text-slate-400 mb-2" />
-                  <p className="text-xs text-slate-500">Preview not available for this file type.</p>
-                  <a href={fileUrl} download={doc.original_filename} className="mt-3">
-                    <Button size="sm" variant="outline" className="text-xs">Download File</Button>
-                  </a>
-                </div>
-              )}
-            </div>
-          </div>
+            <DocumentPreview doc={doc} fileUrl={fileUrl} />
+          </Card>
 
-          {/* Right Column: Interactive Extraction View */}
           <div>
             <ExtractionView
               extraction={extraction}
@@ -278,15 +353,22 @@ export default function DocumentDetailsPage({
           </div>
         </div>
       ) : (
-        /* Tabs Layout */
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-3 max-w-md">
-            <TabsTrigger value="extracted">Extracted Data</TabsTrigger>
-            <TabsTrigger value="source">Document Preview</TabsTrigger>
-            <TabsTrigger value="processing">Pipeline Audit</TabsTrigger>
+        <Tabs value={activeTab} onValueChange={setActiveTab} name="document-detail">
+          <TabsList aria-label="Document views" className="w-full sm:w-auto">
+            <TabsTrigger value="extracted" className="flex-1 sm:flex-none">
+              <Sparkles className="h-3.5 w-3.5" />
+              Extracted data
+            </TabsTrigger>
+            <TabsTrigger value="source" className="flex-1 sm:flex-none">
+              <Eye className="h-3.5 w-3.5" />
+              Document
+            </TabsTrigger>
+            <TabsTrigger value="processing" className="flex-1 sm:flex-none">
+              <Layers className="h-3.5 w-3.5" />
+              Pipeline audit
+            </TabsTrigger>
           </TabsList>
 
-          {/* Tab 1: Extracted Data */}
           <TabsContent value="extracted">
             <ExtractionView
               extraction={extraction}
@@ -296,93 +378,26 @@ export default function DocumentDetailsPage({
             />
           </TabsContent>
 
-          {/* Tab 2: Document Preview */}
           <TabsContent value="source">
-            <Card className="rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-              <CardHeader className="flex flex-row items-center justify-between pb-3 bg-slate-50/50 dark:bg-slate-800/20 border-b border-slate-100 dark:border-slate-800">
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Eye className="w-4 h-4 text-blue-500" />
-                  Original Document Viewer
-                </CardTitle>
+            <Card className="overflow-hidden">
+              <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-3">
+                <span className="flex items-center gap-2 text-xs font-semibold text-ink">
+                  <Eye className="h-3.5 w-3.5 text-brand-500" />
+                  Original document
+                </span>
                 <a href={fileUrl} target="_blank" rel="noreferrer">
-                  <Button variant="outline" size="sm" className="text-xs h-7 gap-1">
-                    Full Screen <Maximize2 className="w-3 h-3" />
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <Maximize2 className="h-3.5 w-3.5" />
+                    Open full size
                   </Button>
                 </a>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-[750px] w-full bg-slate-100 dark:bg-slate-950">
-                  {(doc.file_type ?? "").toLowerCase() === "pdf" ? (
-                    <iframe
-                      src={fileUrl}
-                      className="w-full h-full border-none"
-                      title="PDF Preview"
-                    />
-                  ) : ["jpg", "jpeg", "png", "webp"].includes((doc.file_type ?? "").toLowerCase()) ? (
-                    <div className="w-full h-full flex items-center justify-center p-6 overflow-auto">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={fileUrl}
-                        alt={doc.original_filename}
-                        className="max-h-full max-w-full object-contain rounded-lg shadow-md"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-                      <FileText className="w-12 h-12 text-slate-400 mb-2" />
-                      <p className="text-xs text-slate-500">Preview not directly streamable in iframe.</p>
-                      <a href={fileUrl} download={doc.original_filename} className="mt-3">
-                        <Button size="sm" variant="outline" className="text-xs">Download File</Button>
-                      </a>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
+              </div>
+              <DocumentPreview doc={doc} fileUrl={fileUrl} />
             </Card>
           </TabsContent>
 
-          {/* Tab 3: Processing Pipeline Audit */}
           <TabsContent value="processing">
-            <Card className="rounded-2xl border-slate-200 dark:border-slate-800 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-blue-500" />
-                  Document Processing Pipeline Execution
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4 max-w-2xl text-xs">
-                  {[
-                    { name: "1. File Validation & MIME Check", status: "Completed", phase: "Active", desc: "Validated extension, MIME integrity, and file size" },
-                    { name: "2. Safe Path Storage Isolation", status: "Completed", phase: "Active", desc: "Stored with UUID isolation preventing path traversal" },
-                    { name: "3. PyMuPDF OCR & Text Layer Extraction", status: "Completed", phase: "Active", desc: "Extracted full page text, line tokens, and layout" },
-                    { name: "4. Document Classification Service", status: "Completed", phase: "Active", desc: `Classified as ${formatDocType(doc.document_type)}` },
-                    { name: "5. Bill of Lading Structured AI Extractor", status: "Completed", phase: "Active", desc: "Extracted parties, voyage, containers, weights, and dangerous goods" },
-                    { name: "6. Confidence Scoring & Validation Routing", status: "Completed", phase: "Active", desc: `Evaluated confidence at ${doc.extraction_confidence ? Math.round(doc.extraction_confidence * 100) : 95}%` },
-                  ].map((step, idx) => (
-                    <div
-                      key={idx}
-                      className="p-4 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-800/30 flex items-start justify-between gap-4"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="mt-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-                        <div>
-                          <div className="font-bold text-slate-800 dark:text-slate-200 text-xs">
-                            {step.name}
-                          </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                            {step.desc}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40">
-                        {step.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <PipelineAudit documentId={doc.id} extraction={extraction} />
           </TabsContent>
         </Tabs>
       )}

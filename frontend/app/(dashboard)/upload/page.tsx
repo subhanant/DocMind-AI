@@ -1,18 +1,19 @@
 import React from "react";
+import { PageHeader } from "@/components/layout/page-header";
 import { UploadDropzone } from "@/components/upload/dropzone";
+
+export const metadata = {
+  title: "Upload documents",
+};
 
 export default function UploadPage() {
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Upload Documents
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Upload Bills of Lading, Invoices, Packing Lists, or other trade documents for automated processing.
-        </p>
-      </div>
-
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        eyebrow="Ingest"
+        title="Upload documents"
+        description="Add Bills of Lading, commercial invoices, packing lists or any supported trade document. DocMind AI classifies each file and extracts structured fields automatically."
+      />
       <UploadDropzone />
     </div>
   );

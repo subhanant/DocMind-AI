@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 interface TabsContextValue {
   value: string;
   onValueChange: (val: string) => void;
+  name: string;
 }
 
 const TabsContext = React.createContext<TabsContextValue | null>(null);
@@ -16,12 +17,14 @@ export function Tabs({
   onValueChange,
   children,
   className,
+  name = "tabs",
 }: {
   value?: string;
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   children: React.ReactNode;
   className?: string;
+  name?: string;
 }) {
   const [tab, setTab] = React.useState(value || defaultValue || "");
 
@@ -36,7 +39,7 @@ export function Tabs({
 
   return (
     <TabsContext.Provider
-      value={{ value: currentTab, onValueChange: handleTabChange }}
+      value={{ value: currentTab, onValueChange: handleTabChange, name }}
     >
       <div className={cn("w-full", className)}>{children}</div>
     </TabsContext.Provider>
@@ -46,14 +49,18 @@ export function Tabs({
 export function TabsList({
   children,
   className,
+  "aria-label": ariaLabel,
 }: {
   children: React.ReactNode;
   className?: string;
+  "aria-label"?: string;
 }) {
   return (
     <div
+      role="tablist"
+      aria-label={ariaLabel}
       className={cn(
-        "inline-flex h-10 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 p-1 text-slate-500 dark:text-slate-400",
+        "inline-flex items-center gap-1 rounded-xl border border-line bg-surface-muted p-1",
         className
       )}
     >
@@ -66,10 +73,12 @@ export function TabsTrigger({
   value,
   children,
   className,
+  disabled,
 }: {
   value: string;
   children: React.ReactNode;
   className?: string;
+  disabled?: boolean;
 }) {
   const ctx = React.useContext(TabsContext);
   if (!ctx) throw new Error("TabsTrigger must be used inside Tabs");
@@ -78,12 +87,17 @@ export function TabsTrigger({
   return (
     <button
       type="button"
+      role="tab"
+      id={`${ctx.name}-tab-${value}`}
+      aria-selected={isActive}
+      aria-controls={`${ctx.name}-panel-${value}`}
       onClick={() => ctx.onValueChange(value)}
+      disabled={disabled}
       className={cn(
-        "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3.5 py-1.5 text-sm font-medium transition-all select-none cursor-pointer",
+        "focus-ring inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-1.5 text-sm font-medium transition-[background-color,color,box-shadow] duration-150 select-none disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:size-4",
         isActive
-          ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm"
-          : "hover:text-slate-900 dark:hover:text-slate-100",
+          ? "bg-surface text-ink shadow-card"
+          : "text-ink-muted hover:bg-surface-hover hover:text-ink",
         className
       )}
     >
@@ -107,10 +121,11 @@ export function TabsContent({
 
   return (
     <div
-      className={cn(
-        "mt-4 ring-offset-background focus-visible:outline-none",
-        className
-      )}
+      role="tabpanel"
+      id={`${ctx.name}-panel-${value}`}
+      aria-labelledby={`${ctx.name}-tab-${value}`}
+      tabIndex={0}
+      className={cn("mt-5 animate-fade-in focus-ring rounded-xl", className)}
     >
       {children}
     </div>

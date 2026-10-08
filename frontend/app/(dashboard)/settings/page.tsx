@@ -1,202 +1,245 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { User, Shield, Server, Activity, CheckCircle2, RefreshCw } from "lucide-react";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Activity,
+  Database,
+  KeyRound,
+  RefreshCw,
+  Server,
+  ShieldCheck,
+  User as UserIcon,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { api } from "@/lib/api";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/layout/page-header";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn, formatDateTime, getInitials } from "@/lib/utils";
+
+interface HealthStatus {
+  status: string;
+  environment: string;
+  version: string;
+}
+
+const SECURITY_CARDS = [
+  {
+    icon: KeyRound,
+    title: "Password hashing",
+    body: "Argon2id with 64 MB memory, 3 iterations and 4 threads, plus constant-time dummy verification to prevent timing attacks.",
+  },
+  {
+    icon: Database,
+    title: "Secure storage abstraction",
+    body: "Sanitised UUID filenames, MIME magic verification, path-traversal prevention and a pluggable S3-compatible interface.",
+  },
+  {
+    icon: Server,
+    title: "Typed extraction schema",
+    body: "Nullable typed fields for shipment, cargo, containers, freight and dangerous goods, each with a confidence score.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Encrypted token vault",
+    body: "Email connection records are provisioned for encrypted OAuth token storage, so plaintext secrets are never persisted.",
+  },
+];
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 border-b border-line py-2.5 last:border-0">
+      <dt className="text-xs font-medium text-ink-muted">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-xs font-semibold text-ink">
+        {children}
+      </dd>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { user } = useAuth();
-  const [healthStatus, setHealthStatus] = useState<{
-    status: string;
-    environment: string;
-    version: string;
-  } | null>(null);
-  const [isCheckingHealth, setIsCheckingHealth] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<HealthStatus | null>(null);
+  const [isCheckingHealth, setIsCheckingHealth] = useState(true);
 
-  const checkHealth = async () => {
+  const checkHealth = useCallback(async () => {
+    setIsCheckingHealth(true);
     try {
-      setIsCheckingHealth(true);
-      const res = await api.health.check();
-      setHealthStatus(res);
+      setHealthStatus(await api.health.check());
     } catch {
       setHealthStatus(null);
     } finally {
       setIsCheckingHealth(false);
     }
-  };
-
-  useEffect(() => {
-    checkHealth();
   }, []);
 
+  useEffect(() => {
+    const timeout = setTimeout(() => void checkHealth(), 0);
+    return () => clearTimeout(timeout);
+  }, [checkHealth]);
+
+  const isHealthy = healthStatus?.status === "healthy";
+
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Settings & System
-        </h1>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Manage your account profile and verify backend processing node connectivity.
-        </p>
-      </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        eyebrow="Account"
+        title="Settings & system"
+        description="Your profile details and the live status of the DocMind AI processing service."
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* User Profile Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2.5">
-              <div className="h-9 w-9 rounded-lg bg-blue-50 dark:bg-blue-950 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                <User className="w-5 h-5" />
-              </div>
-              <div>
-                <CardTitle className="text-sm font-semibold">User Profile</CardTitle>
-                <CardDescription className="text-xs">
-                  Your local authentication profile
-                </CardDescription>
-              </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        {/* Profile */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300 [&_svg]:size-4">
+              <UserIcon />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-ink">User profile</h2>
+              <p className="text-xs text-ink-subtle">Your authenticated account</p>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">Full Name</span>
-              <span className="font-semibold text-slate-900 dark:text-slate-100">
+          </div>
+
+          <div className="flex items-center gap-4 border-b border-line px-5 py-5">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-bold text-white shadow-soft">
+              {getInitials(user?.full_name)}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-ink">
                 {user?.full_name || "—"}
-              </span>
+              </p>
+              <p className="truncate text-xs text-ink-muted">{user?.email || "—"}</p>
             </div>
-            <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">Email</span>
-              <span className="font-mono text-slate-700 dark:text-slate-300">
-                {user?.email || "—"}
-              </span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">Role</span>
-              <span className="capitalize px-2 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300 text-[11px] font-semibold">
+          </div>
+
+          <dl className="px-5 py-3">
+            <Row label="Full name">{user?.full_name || "—"}</Row>
+            <Row label="Email">
+              <span className="font-mono text-[11px]">{user?.email || "—"}</span>
+            </Row>
+            <Row label="Role">
+              <Badge variant="default" size="sm" className="capitalize">
                 {user?.role || "user"}
-              </span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-500">User ID</span>
-              <span className="font-mono text-[10px] text-slate-400 truncate max-w-[200px]">
-                {user?.id || "—"}
-              </span>
-            </div>
-          </CardContent>
+              </Badge>
+            </Row>
+            <Row label="Member since">
+              {user?.created_at ? formatDateTime(user.created_at) : "—"}
+            </Row>
+            <Row label="User ID">
+              <span className="font-mono text-[10px] text-ink-subtle">{user?.id || "—"}</span>
+            </Row>
+          </dl>
         </Card>
 
-        {/* Backend API Health Status */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="h-9 w-9 rounded-lg bg-emerald-50 dark:bg-emerald-950 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                  <Activity className="w-5 h-5" />
-                </div>
-                <div>
-                  <CardTitle className="text-sm font-semibold">
-                    FastAPI Health Status
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    Connection to backend processing node
-                  </CardDescription>
-                </div>
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={checkHealth}
-                disabled={isCheckingHealth}
-                className="h-8 w-8 p-0"
-                title="Refresh health check"
+        {/* Backend health */}
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-xl [&_svg]:size-4",
+                  isHealthy
+                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300"
+                    : "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300"
+                )}
               >
-                <RefreshCw
-                  className={`w-3.5 h-3.5 ${
-                    isCheckingHealth ? "animate-spin" : ""
-                  }`}
+                <Activity />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-ink">Processing service</h2>
+                <p className="text-xs text-ink-subtle">Backend connectivity</p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={() => checkHealth()}
+              disabled={isCheckingHealth}
+              aria-label="Refresh health check"
+              title="Refresh health check"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isCheckingHealth && "animate-spin")} />
+            </Button>
+          </div>
+
+          <div className="px-5 py-5">
+            <div className="flex items-center gap-3 rounded-xl border border-line bg-surface-muted/60 p-4">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                {isHealthy && (
+                  <span className="absolute inline-flex h-full w-full animate-ring rounded-full bg-emerald-400" />
+                )}
+                <span
+                  className={cn(
+                    "relative inline-flex h-2.5 w-2.5 rounded-full",
+                    isHealthy ? "bg-emerald-500" : "bg-amber-500"
+                  )}
                 />
-              </Button>
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-ink">
+                  {isCheckingHealth ? "Checking…" : isHealthy ? "Operational" : "Unreachable"}
+                </p>
+                <p className="text-xs text-ink-muted">
+                  {isHealthy
+                    ? "The extraction API is responding normally."
+                    : "Start the backend service to enable document processing."}
+                </p>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-3 text-xs">
-            <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">API Status</span>
-              {healthStatus?.status === "healthy" ? (
-                <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Healthy
-                </span>
+
+            <dl className="mt-3">
+              {isCheckingHealth && !healthStatus ? (
+                <div className="space-y-3 py-2">
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
               ) : (
-                <span className="text-rose-500 font-semibold">
-                  Checking / Offline
-                </span>
+                <>
+                  <Row label="API status">
+                    <span className={isHealthy ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}>
+                      {healthStatus?.status ?? "offline"}
+                    </span>
+                  </Row>
+                  <Row label="Environment">
+                    <span className="font-mono text-[11px]">
+                      {healthStatus?.environment ?? "development"}
+                    </span>
+                  </Row>
+                  <Row label="API version">
+                    <span className="font-mono text-[11px]">
+                      {healthStatus?.version ?? "1.0.0"}
+                    </span>
+                  </Row>
+                </>
               )}
-            </div>
-            <div className="flex justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-              <span className="text-slate-500">Environment</span>
-              <span className="font-mono text-slate-700 dark:text-slate-300">
-                {healthStatus?.environment || "development"}
-              </span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-slate-500">API Version</span>
-              <span className="font-mono text-slate-700 dark:text-slate-300">
-                {healthStatus?.version || "1.0.0"}
-              </span>
-            </div>
-          </CardContent>
+            </dl>
+          </div>
         </Card>
       </div>
 
-      {/* Security Architecture Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2.5">
-            <Shield className="w-5 h-5 text-blue-600" />
-            <CardTitle className="text-sm font-semibold">
-              Security Compliance & Architectural Guardrails
-            </CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">
-            <h5 className="font-semibold text-slate-900 dark:text-white">
-              Password Hashing
-            </h5>
-            <p className="text-slate-500 dark:text-slate-400">
-              Argon2id with 64MB memory, 3 iterations, and 4 threads. Constant-time dummy verification prevents timing attacks.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">
-            <h5 className="font-semibold text-slate-900 dark:text-white">
-              Secure Storage Abstraction
-            </h5>
-            <p className="text-slate-500 dark:text-slate-400">
-              Sanitized UUID filenames, MIME magic verification, path traversal prevention, and pluggable cloud S3 interface.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">
-            <h5 className="font-semibold text-slate-900 dark:text-white">
-              Bill of Lading Schema
-            </h5>
-            <p className="text-slate-500 dark:text-slate-400">
-              Nullable typed fields for shipment, cargo, containers, freight, and dangerous goods with confidence scores.
-            </p>
-          </div>
-
-          <div className="p-3 rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 space-y-1">
-            <h5 className="font-semibold text-slate-900 dark:text-white">
-              Encrypted Token Vault
-            </h5>
-            <p className="text-slate-500 dark:text-slate-400">
-              Pre-provisioned EmailConnection database entities require encryption keys prior to OAuth token storage.
-            </p>
-          </div>
-        </CardContent>
+      {/* Security architecture */}
+      <Card className="overflow-hidden">
+        <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+          <ShieldCheck className="h-4 w-4 text-brand-500" aria-hidden />
+          <h2 className="text-sm font-semibold text-ink">
+            Security & architectural guardrails
+          </h2>
+        </div>
+        <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+          {SECURITY_CARDS.map((card) => (
+            <div
+              key={card.title}
+              className="rounded-xl border border-line bg-surface-muted/50 p-4 transition-colors hover:bg-surface-hover"
+            >
+              <card.icon className="h-4 w-4 text-brand-500" aria-hidden />
+              <h3 className="mt-2.5 text-xs font-semibold text-ink">{card.title}</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-ink-muted">{card.body}</p>
+            </div>
+          ))}
+        </div>
       </Card>
     </div>
   );

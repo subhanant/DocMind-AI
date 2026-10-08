@@ -3,27 +3,27 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 select-none cursor-pointer",
+  "focus-ring relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 cursor-pointer [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 shadow-sm",
+          "bg-brand-600 text-white shadow-soft hover:bg-brand-700 hover:shadow-brand active:bg-brand-800",
         destructive:
-          "bg-rose-600 text-white hover:bg-rose-700 active:bg-rose-800 shadow-sm",
+          "bg-rose-600 text-white shadow-soft hover:bg-rose-700 active:bg-rose-800",
         outline:
-          "border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100",
+          "border border-line bg-surface text-ink shadow-card hover:border-line-strong hover:bg-surface-hover",
         secondary:
-          "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700",
-        ghost:
-          "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300",
-        link: "text-blue-600 dark:text-blue-400 underline-offset-4 hover:underline p-0 h-auto",
+          "bg-surface-muted text-ink shadow-card hover:bg-surface-hover",
+        ghost: "text-ink-muted hover:bg-surface-hover hover:text-ink",
+        link: "h-auto p-0 text-brand-600 underline-offset-4 hover:underline dark:text-brand-300",
       },
       size: {
-        default: "h-9 px-4 py-2",
-        sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-11 rounded-lg px-8 text-base",
-        icon: "h-9 w-9 p-0",
+        default: "h-9 px-4 [&_svg]:size-4",
+        sm: "h-8 gap-1.5 rounded-lg px-3 text-xs [&_svg]:size-3.5",
+        lg: "h-11 rounded-xl px-6 text-sm [&_svg]:size-4",
+        icon: "h-9 w-9 p-0 [&_svg]:size-4",
+        "icon-sm": "h-8 w-8 rounded-lg p-0 [&_svg]:size-4",
       },
     },
     defaultVariants: {
@@ -35,16 +35,15 @@ const buttonVariants = cva(
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
+    VariantProps<typeof buttonVariants> {}
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
+  ({ className, variant, size, type = "button", ...props }, ref) => {
     return (
       <button
-        className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
+        type={type}
+        className={cn(buttonVariants({ variant, size }), className)}
         {...props}
       />
     );

@@ -1,372 +1,528 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
-  UploadCloud,
-  FileText,
-  FileCheck,
-  FileSpreadsheet,
-  FileCode,
-  X,
-  AlertCircle,
+  AlertTriangle,
   CheckCircle2,
+  FileStack,
   Loader2,
-  ArrowRight,
+  Sparkles,
+  Trash2,
+  UploadCloud,
+  X,
 } from "lucide-react";
-import { DocumentType, DocumentItem } from "@/types";
+import { DocumentType } from "@/types";
 import { api, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { formatBytes } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { Select } from "@/components/ui/select";
+import { Alert } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import { FileTypeIcon } from "@/components/documents/file-icon";
+import { useToast } from "@/components/ui/toast";
+import { cn, formatBytes } from "@/lib/utils";
 
-const ALLOWED_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "docx", "xlsx"];
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+const ALLOWED_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "webp", "docx", "xlsx"];
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // matches backend MAX_UPLOAD_SIZE_MB
+const MAX_FILES = 10; // matches the backend per-request limit
+
+type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 interface FileWithStatus {
   file: File;
   id: string;
-  status: "idle" | "uploading" | "success" | "error";
+  status: UploadStatus;
   progress: number;
   error?: string;
-  uploadedDoc?: DocumentItem;
 }
+
+let fileCounter = 0;
+const nextFileId = () => `file-${Date.now()}-${fileCounter++}`;
 
 export function UploadDropzone() {
   const router = useRouter();
+  const toast = useToast();
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
+
   const [files, setFiles] = useState<FileWithStatus[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [selectedType, setSelectedType] = useState<DocumentType | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [resultMessage, setResultMessage] = useState<string | null>(null);
   const [uploadComplete, setUploadComplete] = useState(false);
 
   const validateFile = (file: File): string | null => {
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
-      return `Unsupported file type (.${ext}). Allowed: ${ALLOWED_EXTENSIONS.join(", ").toUpperCase()}`;
+      return `Unsupported type (.${ext ?? "?"}). Allowed: ${ALLOWED_EXTENSIONS.join(", ").toUpperCase()}`;
     }
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return `File exceeds maximum limit of 50MB (${formatBytes(file.size)})`;
+      return `Exceeds the 50 MB limit (${formatBytes(file.size)})`;
+    }
+    if (file.size === 0) {
+      return "File is empty";
     }
     return null;
   };
 
-  const handleFilesAdded = useCallback((newFiles: FileList | File[]) => {
+  const handleFilesAdded = useCallback((incoming: FileList | File[]) => {
     setGlobalError(null);
     setUploadComplete(false);
+    setResultMessage(null);
 
-    const added: FileWithStatus[] = [];
-    Array.from(newFiles).forEach((file) => {
-      const error = validateFile(file);
-      added.push({
-        file,
-        id: `${file.name}-${file.size}-${Date.now()}-${Math.random()}`,
-        status: error ? "error" : "idle",
-        progress: 0,
-        error: error || undefined,
-      });
+    const incomingFiles = Array.from(incoming);
+    if (incomingFiles.length === 0) return;
+
+    setFiles((prev) => {
+      const next = [...prev];
+      const existingKeys = new Set(
+        prev.map((item) => `${item.file.name}:${item.file.size}`)
+      );
+
+      for (const file of incomingFiles) {
+        const key = `${file.name}:${file.size}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+
+        const error = validateFile(file);
+        next.push({
+          file,
+          id: nextFileId(),
+          status: error ? "error" : "idle",
+          progress: 0,
+          error: error ?? undefined,
+        });
+      }
+
+      const total = next.length;
+      if (total > MAX_FILES) {
+        setGlobalError(
+          `You can upload at most ${MAX_FILES} files per batch. Extra files were not added.`
+        );
+        return next.slice(0, MAX_FILES);
+      }
+      return next;
     });
-
-    setFiles((prev) => [...prev, ...added]);
   }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDragEnter = (event: React.DragEvent) => {
+    event.preventDefault();
+    dragDepth.current += 1;
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
+  // Only leave the drag state when the pointer exits the outermost boundary —
+  // dragleave fires for every child element otherwise, causing flicker.
+  const handleDragLeave = (event: React.DragEvent) => {
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    dragDepth.current = 0;
     setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFilesAdded(e.dataTransfer.files);
+    if (event.dataTransfer.files?.length) {
+      handleFilesAdded(event.dataTransfer.files);
     }
   };
+
+  // Paste-to-upload: drop a screenshot straight into the page.
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const pasted = event.clipboardData?.files;
+      if (pasted && pasted.length > 0) handleFilesAdded(pasted);
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [handleFilesAdded]);
 
   const removeFile = (id: string) => {
     setFiles((prev) => prev.filter((f) => f.id !== id));
   };
 
+  const pendingCount = files.filter((f) => f.status === "idle").length;
+  const validCount = files.filter((f) => f.status !== "error").length;
+  const totalBytes = files
+    .filter((f) => f.status !== "error")
+    .reduce((sum, f) => sum + f.file.size, 0);
+
   const handleStartUpload = async () => {
-    const validFiles = files.filter((f) => f.status === "idle");
-    if (validFiles.length === 0) return;
+    const queued = files.filter((f) => f.status === "idle");
+    if (queued.length === 0) return;
 
     setIsSubmitting(true);
     setGlobalError(null);
+    setResultMessage(null);
 
-    // Update status to uploading
     setFiles((prev) =>
-      prev.map((f) =>
-        f.status === "idle" ? { ...f, status: "uploading", progress: 50 } : f
-      )
+      prev.map((f) => (f.status === "idle" ? { ...f, status: "uploading", progress: 35 } : f))
     );
 
     try {
-      const rawFiles = validFiles.map((f) => f.file);
-      const docs = await api.documents.upload(
-        rawFiles,
+      const res = await api.documents.upload(
+        queued.map((f) => f.file),
         selectedType ? selectedType : undefined
       );
 
-      // Map results back
-      setFiles((prev) =>
-        prev.map((f) => {
-          const match = docs.find((d) => d.original_filename === f.file.name);
-          if (match) {
-            return {
-              ...f,
-              status: "success",
-              progress: 100,
-              uploadedDoc: match,
-            };
-          }
-          return f;
-        })
-      );
-
-      setUploadComplete(true);
-    } catch (err: unknown) {
-      const msg = err instanceof ApiError ? err.message : "Upload failed";
-      setGlobalError(msg);
+      const returned = Array.isArray(res) ? res : [];
+      // The API echoes back the primary document only, but every file in a
+      // successful request has been accepted and queued for processing.
       setFiles((prev) =>
         prev.map((f) =>
           f.status === "uploading"
-            ? { ...f, status: "error", error: msg, progress: 0 }
+            ? { ...f, status: "success", progress: 100 }
             : f
         )
       );
+      setUploadComplete(true);
+
+      const message =
+        returned.length > 0
+          ? `${queued.length} document${queued.length === 1 ? "" : "s"} uploaded and queued for AI extraction.`
+          : `${queued.length} document${queued.length === 1 ? "" : "s"} queued for AI extraction.`;
+      setResultMessage(message);
+      toast.success("Upload complete", message);
+    } catch (err: unknown) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : "The upload could not be completed. Please try again.";
+      setGlobalError(message);
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.status === "uploading" ? { ...f, status: "error", error: message, progress: 0 } : f
+        )
+      );
+      toast.error("Upload failed", message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split(".").pop()?.toLowerCase();
-    switch (ext) {
-      case "pdf":
-        return <FileText className="w-5 h-5 text-rose-500" />;
-      case "xlsx":
-      case "xls":
-        return <FileSpreadsheet className="w-5 h-5 text-emerald-500" />;
-      case "docx":
-      case "doc":
-        return <FileCode className="w-5 h-5 text-blue-500" />;
-      default:
-        return <FileCheck className="w-5 h-5 text-slate-500" />;
-    }
+  const resetAll = () => {
+    setFiles([]);
+    setGlobalError(null);
+    setResultMessage(null);
+    setUploadComplete(false);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   return (
     <div className="space-y-6">
-      {/* Upload Settings / Classification Hint */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-        <div>
-          <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Document Classification (Optional)
-          </h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Select a target schema or allow the pipeline to auto-classify.
+      {/* Classification hint */}
+      <Card className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-ink">Classification hint</h2>
+          <p className="mt-1 max-w-xl text-xs leading-relaxed text-ink-muted">
+            Optionally tell the pipeline which schema to target. Leave it unset and DocMind AI
+            will classify each document automatically.
           </p>
         </div>
-        <select
-          value={selectedType}
-          onChange={(e) => setSelectedType(e.target.value as DocumentType | "")}
-          className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="">Auto-Detect / Unknown (Phase 1)</option>
-          <option value="bill_of_lading">Bill of Lading (B/L)</option>
-          <option value="commercial_invoice">Commercial Invoice</option>
-          <option value="packing_list">Packing List</option>
-          <option value="purchase_order">Purchase Order</option>
-          <option value="certificate_of_origin">Certificate of Origin</option>
-          <option value="delivery_challan">Delivery Challan</option>
-          <option value="customs_document">Customs Document</option>
-          <option value="shipping_document">Shipping Document</option>
-          <option value="contract">Contract</option>
-          <option value="receipt">Receipt</option>
-        </select>
-      </div>
-
-      {/* Drag & Drop Box */}
-      <div
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        className={`relative flex flex-col items-center justify-center p-10 sm:p-14 border-2 border-dashed rounded-2xl cursor-pointer transition-all ${
-          isDragging
-            ? "border-blue-500 bg-blue-50/60 dark:bg-blue-950/30 scale-[1.005]"
-            : "border-slate-300 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-400 dark:hover:border-slate-600"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) {
-              handleFilesAdded(e.target.files);
+        <div className="w-full sm:w-64">
+          <Select
+            size="sm"
+            aria-label="Document classification hint"
+            value={selectedType}
+            onChange={(event) =>
+              setSelectedType(event.target.value as DocumentType | "")
             }
-          }}
-        />
+            options={[
+              { value: "bill_of_lading", label: "Bill of Lading" },
+              { value: "commercial_invoice", label: "Commercial Invoice" },
+              { value: "packing_list", label: "Packing List" },
+              { value: "purchase_order", label: "Purchase Order" },
+              { value: "certificate_of_origin", label: "Certificate of Origin" },
+              { value: "delivery_challan", label: "Delivery Challan" },
+              { value: "customs_document", label: "Customs Document" },
+              { value: "shipping_document", label: "Shipping Document" },
+              { value: "contract", label: "Contract" },
+              { value: "receipt", label: "Receipt" },
+            ]}
+            placeholder="Auto-detect"
+          />
+        </div>
+      </Card>
 
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600/10 text-blue-600 dark:text-blue-400 mb-4 shadow-inner">
-          <UploadCloud className="h-7 w-7" />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+        {/* Dropzone */}
+        <div className="lg:col-span-3">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Drag and drop files here, or press Enter to browse"
+            onClick={() => fileInputRef.current?.click()}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                fileInputRef.current?.click();
+              }
+            }}
+            onDragEnter={handleDragEnter}
+            onDragOver={(event) => event.preventDefault()}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={cn(
+              "focus-ring flex h-full min-h-[320px] cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition-[border-color,background-color,transform] duration-200",
+              isDragging
+                ? "scale-[1.01] border-brand-500 bg-brand-50/70 dark:bg-brand-950/30"
+                : "border-line-strong bg-surface-muted/40 hover:border-brand-400 hover:bg-surface-hover"
+            )}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ALLOWED_EXTENSIONS.map((ext) => `.${ext}`).join(",")}
+              className="hidden"
+              onChange={(event) => {
+                if (event.target.files?.length) handleFilesAdded(event.target.files);
+                event.target.value = "";
+              }}
+            />
+
+            <span
+              className={cn(
+                "flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-brand transition-transform duration-200 [&_svg]:size-7",
+                isDragging && "scale-110"
+              )}
+            >
+              <UploadCloud />
+            </span>
+
+            <p className="mt-5 text-base font-semibold text-ink">
+              {isDragging ? "Drop files to add them" : "Drag & drop documents here"}
+            </p>
+            <p className="mt-1.5 text-sm text-ink-muted">
+              or{" "}
+              <span className="font-semibold text-brand-600 underline underline-offset-4 dark:text-brand-300">
+                browse your files
+              </span>{" "}
+              — you can also paste with ⌘V
+            </p>
+
+            <ul className="mt-6 flex flex-wrap items-center justify-center gap-1.5">
+              {ALLOWED_EXTENSIONS.map((ext) => (
+                <li
+                  key={ext}
+                  className="rounded-md border border-line bg-surface px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ink-subtle"
+                >
+                  {ext}
+                </li>
+              ))}
+            </ul>
+
+            <p className="mt-5 text-[11px] text-ink-subtle">
+              Max {MAX_FILES} files per batch · 50 MB per file
+            </p>
+          </div>
         </div>
 
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white text-center">
-          Drag & drop your documents here, or{" "}
-          <span className="text-blue-600 dark:text-blue-400 underline underline-offset-4">
-            browse
-          </span>
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-1.5 max-w-sm">
-          Supports multiple uploads. Maximum file size: 50MB per file.
-        </p>
+        {/* Guidance panel */}
+        <div className="lg:col-span-2">
+          <Card className="h-full p-5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300 [&_svg]:size-4">
+                <Sparkles />
+              </span>
+              <h2 className="text-sm font-semibold text-ink">What happens next</h2>
+            </div>
 
-        {/* Supported badges */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-5">
-          {["PDF", "JPG", "JPEG", "PNG", "DOCX", "XLSX"].map((ext) => (
-            <span
-              key={ext}
-              className="px-2 py-0.5 text-[10px] font-semibold tracking-wide rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-2xs"
-            >
-              {ext}
-            </span>
-          ))}
+            <ol className="mt-4 space-y-4">
+              {[
+                {
+                  title: "Secure storage",
+                  body: "Files are validated by MIME type and stored under an isolated UUID path.",
+                },
+                {
+                  title: "Text & OCR extraction",
+                  body: "Digital text layers are read directly; scans fall back to OCR.",
+                },
+                {
+                  title: "Classification",
+                  body: "Each document is routed to the matching extraction schema.",
+                },
+                {
+                  title: "Structured extraction",
+                  body: "Fields are returned with confidence scores and source evidence.",
+                },
+              ].map((step, index) => (
+                <li key={step.title} className="flex gap-3">
+                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-line bg-surface-muted text-[10px] font-bold text-ink-muted">
+                    {index + 1}
+                  </span>
+                  <div>
+                    <p className="text-xs font-semibold text-ink">{step.title}</p>
+                    <p className="mt-0.5 text-[11px] leading-relaxed text-ink-muted">
+                      {step.body}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            <div className="mt-5 rounded-xl border border-line bg-surface-muted p-3">
+              <p className="text-[11px] leading-relaxed text-ink-muted">
+                Processing runs in the background. You can close this page — results appear in{" "}
+                <Link href="/documents" className="font-semibold text-brand-600 dark:text-brand-300">
+                  Documents
+                </Link>{" "}
+                and notifications once ready.
+              </p>
+            </div>
+          </Card>
         </div>
       </div>
 
-      {/* Global Error Banner */}
       {globalError && (
-        <div className="flex items-center gap-2 p-3.5 rounded-xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{globalError}</span>
-        </div>
+        <Alert variant="error" title="Upload blocked">
+          {globalError}
+        </Alert>
       )}
 
-      {/* File Queue List */}
+      {resultMessage && (
+        <Alert variant="success" title="Upload complete" role="status">
+          {resultMessage}
+        </Alert>
+      )}
+
+      {/* Queue */}
       {files.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-              Selected Files ({files.length})
-            </h4>
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-4">
+            <div className="flex items-center gap-2.5">
+              <FileStack className="h-4 w-4 text-ink-subtle" />
+              <h2 className="text-sm font-semibold text-ink">
+                Selected files
+                <span className="ml-1.5 text-ink-subtle">({files.length})</span>
+              </h2>
+              {validCount > 0 && (
+                <span className="text-xs text-ink-subtle tabular">
+                  · {formatBytes(totalBytes)} total
+                </span>
+              )}
+            </div>
             {!isSubmitting && (
-              <button
-                onClick={() => setFiles([])}
-                className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
-              >
+              <Button variant="ghost" size="sm" onClick={resetAll} className="text-ink-muted">
+                <Trash2 className="h-3.5 w-3.5" />
                 Clear all
-              </button>
+              </Button>
             )}
           </div>
 
-          <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+          <ul className="divide-y divide-line">
             {files.map((item) => (
-              <div
-                key={item.id}
-                className="p-3.5 flex items-center justify-between gap-3 text-xs"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="h-9 w-9 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-                    {getFileIcon(item.file.name)}
+              <li key={item.id} className="flex items-center gap-3 px-5 py-3.5">
+                <FileTypeIcon fileType={item.file.name.split(".").pop()} />
+
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="truncate text-sm font-medium text-ink"
+                    title={item.file.name}
+                  >
+                    {item.file.name}
+                  </p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                    <span className="tabular text-ink-subtle">{formatBytes(item.file.size)}</span>
+                    {item.error && (
+                      <span className="font-medium text-rose-600 dark:text-rose-400">
+                        · {item.error}
+                      </span>
+                    )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-medium text-slate-900 dark:text-slate-100 truncate max-w-xs sm:max-w-md">
-                      {item.file.name}
-                    </p>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <span>{formatBytes(item.file.size)}</span>
-                      {item.error && (
-                        <span className="text-rose-600 dark:text-rose-400 font-medium">
-                          • {item.error}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                  {(item.status === "uploading" || item.status === "success") && (
+                    <Progress
+                      value={item.progress}
+                      className="mt-2 max-w-xs"
+                      tone={item.status === "success" ? "emerald" : "brand"}
+                    />
+                  )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {item.status === "uploading" && (
-                    <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-medium">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Uploading...
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-brand-600 dark:text-brand-300">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Uploading
                     </span>
                   )}
                   {item.status === "success" && (
-                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      Uploaded
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Queued
                     </span>
                   )}
                   {item.status === "error" && (
-                    <span className="text-rose-600 dark:text-rose-400 font-medium">
-                      Failed
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-rose-600 dark:text-rose-400">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Rejected
                     </span>
                   )}
                   {item.status !== "uploading" && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => removeFile(item.id)}
-                      className="p-1 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                      aria-label={`Remove ${item.file.name}`}
+                      className="text-ink-subtle hover:text-rose-600 dark:hover:text-rose-400"
                     >
-                      <X className="w-4 h-4" />
-                    </button>
+                      <X />
+                    </Button>
                   )}
                 </div>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
 
-          {/* Action CTAs */}
-          <div className="flex items-center justify-between pt-2">
-            <div>
+          <div className="flex flex-col gap-3 border-t border-line bg-surface-muted/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-ink-muted">
+              {pendingCount > 0
+                ? `${pendingCount} file${pendingCount === 1 ? "" : "s"} ready to upload`
+                : files.some((f) => f.status === "error")
+                ? "Remove or replace rejected files to continue"
+                : "All selected files have been uploaded"}
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
               {uploadComplete && (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4" />
-                  All valid documents uploaded & registered in database!
-                </p>
+                <>
+                  <Button variant="outline" onClick={resetAll}>
+                    Upload more
+                  </Button>
+                  <Button onClick={() => router.push("/documents")} className="gap-1.5">
+                    View in documents
+                    <Sparkles className="h-4 w-4" />
+                  </Button>
+                </>
               )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {uploadComplete ? (
-                <Button onClick={() => router.push("/documents")} className="gap-1.5">
-                  View in Documents <ArrowRight className="w-4 h-4" />
-                </Button>
-              ) : (
+              {!uploadComplete && (
                 <Button
                   onClick={handleStartUpload}
-                  disabled={
-                    isSubmitting ||
-                    files.filter((f) => f.status === "idle").length === 0
-                  }
+                  disabled={isSubmitting || pendingCount === 0}
                   className="gap-1.5"
                 >
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Processing Upload...
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading…
                     </>
                   ) : (
                     <>
-                      <UploadCloud className="w-4 h-4" />
-                      Upload {files.filter((f) => f.status === "idle").length} Document
-                      {files.filter((f) => f.status === "idle").length === 1 ? "" : "s"}
+                      <UploadCloud className="h-4 w-4" />
+                      Upload {pendingCount} file{pendingCount === 1 ? "" : "s"}
                     </>
                   )}
                 </Button>
               )}
             </div>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

@@ -7,6 +7,8 @@ import {
   ExtractionResult,
   NotificationItem,
   PaginatedResponse,
+  ProcessingStatus,
+  RecentDocument,
   User,
 } from "@/types";
 
@@ -141,8 +143,10 @@ export const api = {
       return request<DashboardStats>("/api/dashboard/stats");
     },
 
-    async getRecentDocuments(limit = 5): Promise<DocumentItem[]> {
-      return request<DocumentItem[]>(`/api/dashboard/recent-documents?limit=${limit}`);
+    async getRecentDocuments(limit = 5): Promise<RecentDocument[]> {
+      return request<RecentDocument[]>(
+        `/api/dashboard/recent-documents?limit=${limit}`
+      );
     },
   },
 
@@ -215,6 +219,10 @@ export const api = {
       return request<ExtractionResult>(`/api/documents/${id}/reprocess`, {
         method: "POST",
       });
+    },
+
+    async getProcessingStatus(id: string): Promise<ProcessingStatus> {
+      return request<ProcessingStatus>(`/api/documents/${id}/processing-status`);
     },
 
     getFileUrl(id: string): string {

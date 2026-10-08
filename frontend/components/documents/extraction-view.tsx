@@ -1,30 +1,43 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import React, { useState } from "react";
 import { ExtractionResult } from "@/types";
 import {
-  FileText,
-  Ship,
   Calendar,
-  Package,
-  DollarSign,
-  Info,
   CheckCircle2,
-  Clock,
-  Edit3,
-  Save,
-  X,
-  Download,
   Copy,
-  Check,
-  RefreshCw,
-  Container,
-  UserCheck,
+  DollarSign,
+  Download,
+  Edit3,
+  FileJson,
+  FileText,
   Flame,
+  Info,
+  Package,
+  RefreshCw,
+  Save,
+  Search,
+  Ship,
+  Sparkles,
+  UserCheck,
+  X,
 } from "lucide-react";
-import { formatConfidence, formatDocType } from "@/lib/utils";
+import {
+  confidenceLevel,
+  ConfidenceBadge,
+  ConfidenceRing,
+} from "@/components/ui/confidence";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Alert } from "@/components/ui/alert";
+import { Table, TableWrapper, Td, Th, Tr } from "@/components/ui/table";
+import { useToast } from "@/components/ui/toast";
 import { api } from "@/lib/api";
+import { cn, formatConfidence, formatDocType } from "@/lib/utils";
 
 interface ExtractionViewProps {
   extraction: ExtractionResult | null;
@@ -34,10 +47,371 @@ interface ExtractionViewProps {
 }
 
 interface FieldValue {
-  value: string | number | null;
+  value: string | null;
   confidence: number;
   source_text?: string;
   page?: number;
+}
+
+type FieldDef = {
+  label: string;
+  paths: string[];
+  evidenceKeys: string[];
+  editKey?: string;
+};
+
+type SectionDef = {
+  key: string;
+  title: string;
+  icon: React.ElementType;
+  iconClass: string;
+  fields: FieldDef[];
+};
+
+const SECTIONS: SectionDef[] = [
+  {
+    key: "document",
+    title: "Document information",
+    icon: FileText,
+    iconClass: "text-brand-600 dark:text-brand-300",
+    fields: [
+      {
+        label: "B/L Number",
+        paths: ["document_metadata.bl_number", "bl_number"],
+        evidenceKeys: ["bl_number"],
+        editKey: "bl_number",
+      },
+      {
+        label: "B/L Date",
+        paths: ["document_metadata.bl_date", "bl_date", "issue_date", "dates.bl_date", "dates.issue_date"],
+        evidenceKeys: ["bl_date", "issue_date"],
+        editKey: "bl_date",
+      },
+      {
+        label: "B/L Type",
+        paths: ["document_metadata.bl_type", "bl_type"],
+        evidenceKeys: ["bl_type"],
+        editKey: "bl_type",
+      },
+      {
+        label: "B/L Status",
+        paths: ["document_metadata.bl_status", "bl_status"],
+        evidenceKeys: ["bl_status"],
+        editKey: "bl_status",
+      },
+      {
+        label: "Place of Issue",
+        paths: ["document_metadata.place_of_issue", "place_of_issue"],
+        evidenceKeys: ["place_of_issue"],
+        editKey: "place_of_issue",
+      },
+      {
+        label: "Original Copies",
+        paths: ["document_metadata.original_copies", "original_copies"],
+        evidenceKeys: ["original_copies"],
+        editKey: "original_copies",
+      },
+    ],
+  },
+  {
+    key: "parties",
+    title: "Parties",
+    icon: UserCheck,
+    iconClass: "text-indigo-500",
+    fields: [
+      {
+        label: "Shipper Name",
+        paths: ["parties.shipper.name", "shipper.name", "shipper"],
+        evidenceKeys: ["shipper_name", "shipper.name"],
+        editKey: "shipper_name",
+      },
+      {
+        label: "Shipper Address",
+        paths: ["parties.shipper.address", "shipper.address"],
+        evidenceKeys: ["shipper_address", "shipper.address"],
+        editKey: "shipper_address",
+      },
+      {
+        label: "Consignee Name",
+        paths: ["parties.consignee.name", "consignee.name", "consignee"],
+        evidenceKeys: ["consignee_name", "consignee.name"],
+        editKey: "consignee_name",
+      },
+      {
+        label: "Consignee Address",
+        paths: ["parties.consignee.address", "consignee.address"],
+        evidenceKeys: ["consignee_address", "consignee.address"],
+        editKey: "consignee_address",
+      },
+      {
+        label: "Notify Party Name",
+        paths: ["parties.notify_party.name", "notify_party.name", "notify_party"],
+        evidenceKeys: ["notify_party_name", "notify_party.name"],
+        editKey: "notify_party_name",
+      },
+      {
+        label: "Notify Party Address",
+        paths: ["parties.notify_party.address", "notify_party.address"],
+        evidenceKeys: ["notify_party_address", "notify_party.address"],
+        editKey: "notify_party_address",
+      },
+    ],
+  },
+  {
+    key: "shipment",
+    title: "Shipment",
+    icon: Ship,
+    iconClass: "text-cyan-500",
+    fields: [
+      {
+        label: "Carrier",
+        paths: ["shipment.carrier", "carrier", "shipment.shipping_line", "shipping_line"],
+        evidenceKeys: ["carrier", "shipping_line"],
+        editKey: "carrier",
+      },
+      {
+        label: "Vessel Name",
+        paths: ["shipment.vessel_name", "vessel_name"],
+        evidenceKeys: ["vessel_name"],
+        editKey: "vessel_name",
+      },
+      {
+        label: "Voyage Number",
+        paths: ["shipment.voyage_number", "voyage_number"],
+        evidenceKeys: ["voyage_number"],
+        editKey: "voyage_number",
+      },
+      {
+        label: "Place of Receipt",
+        paths: ["shipment.place_of_receipt", "place_of_receipt"],
+        evidenceKeys: ["place_of_receipt"],
+        editKey: "place_of_receipt",
+      },
+      {
+        label: "Port of Loading (POL)",
+        paths: ["shipment.port_of_loading", "port_of_loading"],
+        evidenceKeys: ["port_of_loading"],
+        editKey: "port_of_loading",
+      },
+      {
+        label: "Port of Discharge (POD)",
+        paths: ["shipment.port_of_discharge", "port_of_discharge"],
+        evidenceKeys: ["port_of_discharge"],
+        editKey: "port_of_discharge",
+      },
+      {
+        label: "Place of Delivery",
+        paths: ["shipment.place_of_delivery", "place_of_delivery", "final_destination"],
+        evidenceKeys: ["place_of_delivery", "final_destination"],
+        editKey: "place_of_delivery",
+      },
+    ],
+  },
+  {
+    key: "dates",
+    title: "Dates",
+    icon: Calendar,
+    iconClass: "text-rose-500",
+    fields: [
+      {
+        label: "On Board Date",
+        paths: ["dates.on_board_date", "on_board_date"],
+        evidenceKeys: ["on_board_date"],
+        editKey: "on_board_date",
+      },
+      {
+        label: "Issue Date",
+        paths: ["document_metadata.bl_date", "bl_date", "dates.issue_date", "dates.bl_date"],
+        evidenceKeys: ["bl_date", "issue_date"],
+        editKey: "bl_date",
+      },
+    ],
+  },
+  {
+    key: "cargo",
+    title: "Cargo",
+    icon: Package,
+    iconClass: "text-amber-500",
+    fields: [
+      {
+        label: "Cargo Description",
+        paths: ["cargo.description", "description", "cargo.commodity", "commodity"],
+        evidenceKeys: ["cargo_description", "description"],
+        editKey: "description",
+      },
+      {
+        label: "HS Code",
+        paths: ["cargo.hs_code", "hs_code"],
+        evidenceKeys: ["hs_code"],
+        editKey: "hs_code",
+      },
+      {
+        label: "Marks & Numbers",
+        paths: ["cargo.marks_and_numbers", "marks_and_numbers"],
+        evidenceKeys: ["marks_and_numbers"],
+        editKey: "marks_and_numbers",
+      },
+      {
+        label: "Number of Packages",
+        paths: ["cargo.number_of_packages", "number_of_packages", "cargo.package_type"],
+        evidenceKeys: ["number_of_packages"],
+        editKey: "number_of_packages",
+      },
+      {
+        label: "Gross Weight",
+        paths: ["cargo.gross_weight", "gross_weight"],
+        evidenceKeys: ["gross_weight"],
+        editKey: "gross_weight",
+      },
+      {
+        label: "Net Weight",
+        paths: ["cargo.net_weight", "net_weight"],
+        evidenceKeys: ["net_weight"],
+        editKey: "net_weight",
+      },
+      {
+        label: "CBM / Volume",
+        paths: ["cargo.cbm", "cbm", "cargo.volume", "volume"],
+        evidenceKeys: ["cbm", "volume"],
+        editKey: "cbm",
+      },
+    ],
+  },
+  {
+    key: "freight",
+    title: "Freight",
+    icon: DollarSign,
+    iconClass: "text-emerald-500",
+    fields: [
+      {
+        label: "Freight Terms",
+        paths: ["freight.terms", "freight_terms"],
+        evidenceKeys: ["freight_terms"],
+        editKey: "freight_terms",
+      },
+      {
+        label: "Freight Amount",
+        paths: ["freight.amount", "freight_amount", "prepaid_amount", "collect_amount"],
+        evidenceKeys: ["freight_amount"],
+        editKey: "freight_amount",
+      },
+      {
+        label: "Currency",
+        paths: ["freight.currency", "freight_currency", "currency"],
+        evidenceKeys: ["currency", "freight_currency"],
+        editKey: "currency",
+      },
+    ],
+  },
+  {
+    key: "references",
+    title: "References",
+    icon: Info,
+    iconClass: "text-violet-500",
+    fields: [
+      {
+        label: "Booking Number",
+        paths: ["shipment.booking_number", "booking_number"],
+        evidenceKeys: ["booking_number"],
+        editKey: "booking_number",
+      },
+      {
+        label: "Invoice Number",
+        paths: ["references.invoice_number", "invoice_number"],
+        evidenceKeys: ["invoice_number"],
+        editKey: "invoice_number",
+      },
+      {
+        label: "Purchase Order No.",
+        paths: ["references.purchase_order_number", "purchase_order_number"],
+        evidenceKeys: ["purchase_order_number"],
+        editKey: "purchase_order_number",
+      },
+    ],
+  },
+];
+
+const VALIDATION_BADGES: Record<
+  ExtractionResult["validation_status"],
+  { variant: "success" | "warning" | "destructive" | "neutral"; label: string }
+> = {
+  valid: { variant: "success", label: "Validated" },
+  partial: { variant: "warning", label: "Partially validated" },
+  invalid: { variant: "destructive", label: "Validation failed" },
+  pending: { variant: "neutral", label: "Awaiting validation" },
+};
+
+function downloadFile(content: string, filename: string, mime: string) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+/** Shown when a document is stored but has not been through the AI pipeline. */
+function NotProcessedCard({
+  documentId,
+  onExtractionUpdated,
+}: {
+  documentId: string;
+  onExtractionUpdated?: (extraction: ExtractionResult) => void;
+}) {
+  const toast = useToast();
+  const [isReprocessing, setIsReprocessing] = useState(false);
+
+  const handleReprocess = async () => {
+    try {
+      setIsReprocessing(true);
+      const res = await api.documents.reprocess(documentId);
+      onExtractionUpdated?.(res);
+      toast.success(
+        "Extraction complete",
+        "The document was processed by the AI pipeline."
+      );
+    } catch {
+      toast.error(
+        "Extraction failed",
+        "The document could not be processed. Please try again."
+      );
+    } finally {
+      setIsReprocessing(false);
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden">
+      <EmptyState
+        icon={Sparkles}
+        title="AI extraction has not run yet"
+        description="This document is stored but no structured fields have been extracted. Run the pipeline to classify it and extract every field with confidence scores."
+        action={
+          <Button onClick={handleReprocess} disabled={isReprocessing} className="gap-2">
+            <RefreshCw className={cn("h-4 w-4", isReprocessing && "animate-spin")} />
+            {isReprocessing ? "Extracting…" : "Run AI extraction now"}
+          </Button>
+        }
+      />
+      <div className="border-t border-line bg-surface-muted/50 px-6 py-4">
+        <ol className="mx-auto flex max-w-md flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[11px] font-medium text-ink-subtle">
+          {["Upload", "OCR", "Classify", "Extract", "Validate"].map((stage, index, all) => (
+            <li key={stage} className="flex items-center gap-2">
+              <span className="rounded-md border border-line bg-surface px-1.5 py-0.5">
+                {stage}
+              </span>
+              {index < all.length - 1 && (
+                <span aria-hidden>→</span>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </Card>
+  );
 }
 
 export function ExtractionView({
@@ -46,87 +420,83 @@ export function ExtractionView({
   documentType,
   onExtractionUpdated,
 }: ExtractionViewProps) {
+  const hasExtractedData = Boolean(
+    extraction &&
+      extraction.extracted_json &&
+      Object.keys(extraction.extracted_json).length > 0 &&
+      extraction.extracted_json.status !== "unimplemented"
+  );
+
+  if (!hasExtractedData || !extraction) {
+    return (
+      <NotProcessedCard
+        documentId={documentId}
+        onExtractionUpdated={onExtractionUpdated}
+      />
+    );
+  }
+
+  return (
+    <ExtractionResults
+      // Remount when the backend returns a new extraction so edit state resets.
+      key={`${extraction.id}-${extraction.updated_at}`}
+      extraction={extraction}
+      documentId={documentId}
+      documentType={documentType}
+      onExtractionUpdated={onExtractionUpdated}
+    />
+  );
+}
+
+function ExtractionResults({
+  extraction,
+  documentId,
+  documentType,
+  onExtractionUpdated,
+}: ExtractionViewProps & { extraction: ExtractionResult }) {
+  const toast = useToast();
+
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [editFormData, setEditFormData] = useState<Record<string, string>>({});
-
-  const hasExtractedData =
-    extraction &&
-    extraction.extracted_json &&
-    Object.keys(extraction.extracted_json).length > 0 &&
-    extraction.extracted_json.status !== "unimplemented";
-
-  if (!hasExtractedData) {
-    return (
-      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 backdrop-blur-sm p-10 text-center shadow-sm">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 dark:bg-blue-950/50 mx-auto text-blue-600 dark:text-blue-400 mb-4 ring-8 ring-blue-50/50 dark:ring-blue-950/20">
-          <Clock className="w-7 h-7 animate-pulse" />
-        </div>
-        <h4 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-          Extraction In Progress or Queued
-        </h4>
-        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mt-2 leading-relaxed">
-          The document text and layout are being processed. Click below to trigger or re-run the AI extraction pipeline.
-        </p>
-
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-          <Button
-            onClick={async () => {
-              try {
-                setIsReprocessing(true);
-                const res = await api.documents.reprocess(documentId);
-                if (onExtractionUpdated) onExtractionUpdated(res);
-              } catch {
-                alert("Failed to process document.");
-              } finally {
-                setIsReprocessing(false);
-              }
-            }}
-            disabled={isReprocessing}
-            className="bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isReprocessing ? "animate-spin" : ""}`} />
-            {isReprocessing ? "Extracting..." : "Run AI Extraction Now"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const [fieldQuery, setFieldQuery] = useState("");
+  const [showEmptyFields, setShowEmptyFields] = useState(true);
+  const [showRawJson, setShowRawJson] = useState(false);
 
   const rawData = (extraction.extracted_json || {}) as Record<string, any>;
-  const fieldEvidence = (extraction.field_evidence || rawData.field_evidence || {}) as Record<string, any>;
+  const fieldEvidence = (extraction.field_evidence ||
+    rawData.field_evidence ||
+    {}) as Record<string, any>;
 
-  // Flexible field resolver supporting nested Phase 2 schema & field evidence
+  /** Resolves a field from `field_evidence` first, then nested `extracted_json` paths. */
   const getField = (
     paths: string[],
     evidenceKeys: string[] = []
   ): FieldValue | undefined => {
-    // 1. Check field_evidence for matching key
     let evMatch: any = undefined;
-    for (const k of evidenceKeys) {
-      if (fieldEvidence && fieldEvidence[k]) {
-        evMatch = fieldEvidence[k];
+    for (const key of evidenceKeys) {
+      if (fieldEvidence && fieldEvidence[key]) {
+        evMatch = fieldEvidence[key];
         break;
       }
     }
 
-    // 2. Check extracted_json at each path
     let rawVal: any = undefined;
-    for (const p of paths) {
-      const parts = p.split(".");
-      let curr: any = rawData;
+    for (const path of paths) {
+      const parts = path.split(".");
+      let current: any = rawData;
       for (const part of parts) {
-        if (curr && typeof curr === "object" && part in curr) {
-          curr = curr[part];
+        if (current && typeof current === "object" && part in current) {
+          current = current[part];
         } else {
-          curr = undefined;
+          current = undefined;
           break;
         }
       }
-      if (curr !== undefined && curr !== null) {
-        rawVal = curr;
+      if (current !== undefined && current !== null) {
+        rawVal = current;
         break;
       }
     }
@@ -145,8 +515,13 @@ export function ExtractionView({
       finalVal = rawVal;
     }
 
-    // If finalVal is an extracted field wrapper { value, confidence }
-    if (finalVal && typeof finalVal === "object" && "value" in finalVal && !("unit" in finalVal)) {
+    // Extracted-field wrapper: { value, confidence, source_text }
+    if (
+      finalVal &&
+      typeof finalVal === "object" &&
+      "value" in finalVal &&
+      !("unit" in finalVal)
+    ) {
       if (finalVal.confidence !== undefined && (!evMatch || !evMatch.confidence)) {
         evMatch = { ...evMatch, confidence: finalVal.confidence };
       }
@@ -156,66 +531,37 @@ export function ExtractionView({
       finalVal = finalVal.value;
     }
 
-    // If finalVal is a Measurement { value, unit }
+    // Measurement wrapper: { value, unit }
     if (finalVal && typeof finalVal === "object" && "value" in finalVal) {
-      const v = finalVal.value;
-      const u = finalVal.unit ? ` ${finalVal.unit}` : "";
-      if (v === null || v === undefined) {
-        return undefined;
-      }
-      finalVal = typeof v === "number" ? `${v.toLocaleString()}${u}` : `${v}${u}`;
+      const value = finalVal.value;
+      const unit = finalVal.unit ? ` ${finalVal.unit}` : "";
+      if (value === null || value === undefined) return undefined;
+      finalVal =
+        typeof value === "number"
+          ? `${value.toLocaleString()}${unit}`
+          : `${value}${unit}`;
     }
 
     if (finalVal === null || finalVal === undefined || finalVal === "") {
       return undefined;
     }
 
-    const conf = evMatch?.confidence ?? extraction.confidence_score ?? 0.90;
-    const source_text = evMatch?.source_text ?? undefined;
-    const page = evMatch?.page ?? undefined;
-
     return {
       value: String(finalVal),
-      confidence: conf,
-      source_text,
-      page,
+      confidence: evMatch?.confidence ?? extraction.confidence_score ?? 0.9,
+      source_text: evMatch?.source_text ?? undefined,
+      page: evMatch?.page ?? undefined,
     };
   };
 
-  const fieldsToEditMap: Array<{ key: string; paths: string[]; evKeys: string[] }> = [
-    { key: "bl_number", paths: ["document_metadata.bl_number", "bl_number"], evKeys: ["bl_number"] },
-    { key: "bl_date", paths: ["document_metadata.bl_date", "bl_date", "dates.issue_date"], evKeys: ["bl_date", "issue_date"] },
-    { key: "bl_type", paths: ["document_metadata.bl_type", "bl_type"], evKeys: ["bl_type"] },
-    { key: "shipper_name", paths: ["parties.shipper.name", "shipper.name"], evKeys: ["shipper_name", "shipper.name"] },
-    { key: "shipper_address", paths: ["parties.shipper.address", "shipper.address"], evKeys: ["shipper_address", "shipper.address"] },
-    { key: "consignee_name", paths: ["parties.consignee.name", "consignee.name"], evKeys: ["consignee_name", "consignee.name"] },
-    { key: "consignee_address", paths: ["parties.consignee.address", "consignee.address"], evKeys: ["consignee_address", "consignee.address"] },
-    { key: "notify_party_name", paths: ["parties.notify_party.name", "notify_party.name"], evKeys: ["notify_party_name", "notify_party.name"] },
-    { key: "carrier", paths: ["shipment.carrier", "carrier", "shipment.shipping_line", "shipping_line"], evKeys: ["carrier", "shipping_line"] },
-    { key: "vessel_name", paths: ["shipment.vessel_name", "vessel_name"], evKeys: ["vessel_name"] },
-    { key: "voyage_number", paths: ["shipment.voyage_number", "voyage_number"], evKeys: ["voyage_number"] },
-    { key: "port_of_loading", paths: ["shipment.port_of_loading", "port_of_loading"], evKeys: ["port_of_loading"] },
-    { key: "port_of_discharge", paths: ["shipment.port_of_discharge", "port_of_discharge"], evKeys: ["port_of_discharge"] },
-    { key: "place_of_delivery", paths: ["shipment.place_of_delivery", "place_of_delivery"], evKeys: ["place_of_delivery"] },
-    { key: "on_board_date", paths: ["dates.on_board_date", "on_board_date"], evKeys: ["on_board_date"] },
-    { key: "description", paths: ["cargo.description", "description", "cargo.commodity"], evKeys: ["cargo_description", "description"] },
-    { key: "hs_code", paths: ["cargo.hs_code", "hs_code"], evKeys: ["hs_code"] },
-    { key: "number_of_packages", paths: ["cargo.number_of_packages", "number_of_packages"], evKeys: ["number_of_packages"] },
-    { key: "gross_weight", paths: ["cargo.gross_weight", "gross_weight"], evKeys: ["gross_weight"] },
-    { key: "net_weight", paths: ["cargo.net_weight", "net_weight"], evKeys: ["net_weight"] },
-    { key: "cbm", paths: ["cargo.cbm", "cbm", "cargo.volume", "volume"], evKeys: ["cbm", "volume"] },
-    { key: "freight_terms", paths: ["freight.terms", "freight_terms"], evKeys: ["freight_terms"] },
-    { key: "freight_amount", paths: ["freight.amount", "freight_amount"], evKeys: ["freight_amount"] },
-    { key: "currency", paths: ["freight.currency", "freight_currency", "currency"], evKeys: ["currency", "freight_currency"] },
-    { key: "booking_number", paths: ["shipment.booking_number", "booking_number"], evKeys: ["booking_number"] },
-    { key: "invoice_number", paths: ["references.invoice_number", "invoice_number"], evKeys: ["invoice_number"] },
-  ];
-
   const handleStartEdit = () => {
     const initialData: Record<string, string> = {};
-    for (const f of fieldsToEditMap) {
-      const val = getField(f.paths, f.evKeys);
-      initialData[f.key] = val?.value ? String(val.value) : "";
+    for (const section of SECTIONS) {
+      for (const field of section.fields) {
+        if (!field.editKey) continue;
+        const value = getField(field.paths, field.evidenceKeys);
+        initialData[field.editKey] = value?.value ? String(value.value) : "";
+      }
     }
     setEditFormData(initialData);
     setIsEditing(true);
@@ -224,464 +570,517 @@ export function ExtractionView({
   const handleSaveEdit = async () => {
     setIsSaving(true);
     try {
-      const updatedJson = JSON.parse(JSON.stringify(rawData));
+      const updatedJson = JSON.parse(JSON.stringify(rawData)) as Record<string, any>;
 
-      // Helper to set nested property
-      const setNested = (obj: any, path: string, val: any) => {
+      const setNested = (obj: Record<string, any>, path: string, value: unknown) => {
         const parts = path.split(".");
-        let curr = obj;
+        let current = obj;
         for (let i = 0; i < parts.length - 1; i++) {
-          if (!curr[parts[i]]) curr[parts[i]] = {};
-          curr = curr[parts[i]];
+          if (!current[parts[i]]) current[parts[i]] = {};
+          current = current[parts[i]];
         }
-        curr[parts[parts.length - 1]] = val;
+        current[parts[parts.length - 1]] = value;
       };
 
-      if (editFormData.bl_number !== undefined) setNested(updatedJson, "document_metadata.bl_number", editFormData.bl_number || null);
-      if (editFormData.bl_date !== undefined) setNested(updatedJson, "document_metadata.bl_date", editFormData.bl_date || null);
-      if (editFormData.bl_type !== undefined) setNested(updatedJson, "document_metadata.bl_type", editFormData.bl_type || null);
-      if (editFormData.shipper_name !== undefined) setNested(updatedJson, "parties.shipper.name", editFormData.shipper_name || null);
-      if (editFormData.shipper_address !== undefined) setNested(updatedJson, "parties.shipper.address", editFormData.shipper_address || null);
-      if (editFormData.consignee_name !== undefined) setNested(updatedJson, "parties.consignee.name", editFormData.consignee_name || null);
-      if (editFormData.consignee_address !== undefined) setNested(updatedJson, "parties.consignee.address", editFormData.consignee_address || null);
-      if (editFormData.notify_party_name !== undefined) setNested(updatedJson, "parties.notify_party.name", editFormData.notify_party_name || null);
-      if (editFormData.carrier !== undefined) setNested(updatedJson, "shipment.carrier", editFormData.carrier || null);
-      if (editFormData.vessel_name !== undefined) setNested(updatedJson, "shipment.vessel_name", editFormData.vessel_name || null);
-      if (editFormData.voyage_number !== undefined) setNested(updatedJson, "shipment.voyage_number", editFormData.voyage_number || null);
-      if (editFormData.port_of_loading !== undefined) setNested(updatedJson, "shipment.port_of_loading", editFormData.port_of_loading || null);
-      if (editFormData.port_of_discharge !== undefined) setNested(updatedJson, "shipment.port_of_discharge", editFormData.port_of_discharge || null);
-      if (editFormData.place_of_delivery !== undefined) setNested(updatedJson, "shipment.place_of_delivery", editFormData.place_of_delivery || null);
-      if (editFormData.on_board_date !== undefined) setNested(updatedJson, "dates.on_board_date", editFormData.on_board_date || null);
-      if (editFormData.description !== undefined) setNested(updatedJson, "cargo.description", editFormData.description || null);
-      if (editFormData.hs_code !== undefined) setNested(updatedJson, "cargo.hs_code", editFormData.hs_code || null);
-      if (editFormData.freight_terms !== undefined) setNested(updatedJson, "freight.terms", editFormData.freight_terms || null);
-      if (editFormData.currency !== undefined) setNested(updatedJson, "freight.currency", editFormData.currency || null);
-      if (editFormData.booking_number !== undefined) setNested(updatedJson, "shipment.booking_number", editFormData.booking_number || null);
-      if (editFormData.invoice_number !== undefined) setNested(updatedJson, "references.invoice_number", editFormData.invoice_number || null);
+      const write = (editKey: string, path: string) => {
+        if (editFormData[editKey] === undefined) return;
+        setNested(updatedJson, path, editFormData[editKey] || null);
+      };
+
+      write("bl_number", "document_metadata.bl_number");
+      write("bl_date", "document_metadata.bl_date");
+      write("bl_type", "document_metadata.bl_type");
+      write("bl_status", "document_metadata.bl_status");
+      write("place_of_issue", "document_metadata.place_of_issue");
+      write("original_copies", "document_metadata.original_copies");
+      write("shipper_name", "parties.shipper.name");
+      write("shipper_address", "parties.shipper.address");
+      write("consignee_name", "parties.consignee.name");
+      write("consignee_address", "parties.consignee.address");
+      write("notify_party_name", "parties.notify_party.name");
+      write("notify_party_address", "parties.notify_party.address");
+      write("carrier", "shipment.carrier");
+      write("vessel_name", "shipment.vessel_name");
+      write("voyage_number", "shipment.voyage_number");
+      write("place_of_receipt", "shipment.place_of_receipt");
+      write("port_of_loading", "shipment.port_of_loading");
+      write("port_of_discharge", "shipment.port_of_discharge");
+      write("place_of_delivery", "shipment.place_of_delivery");
+      write("on_board_date", "dates.on_board_date");
+      write("description", "cargo.description");
+      write("hs_code", "cargo.hs_code");
+      write("marks_and_numbers", "cargo.marks_and_numbers");
+      write("number_of_packages", "cargo.number_of_packages");
+      write("gross_weight", "cargo.gross_weight");
+      write("net_weight", "cargo.net_weight");
+      write("cbm", "cargo.cbm");
+      write("freight_terms", "freight.terms");
+      write("freight_amount", "freight.amount");
+      write("currency", "freight.currency");
+      write("booking_number", "shipment.booking_number");
+      write("invoice_number", "references.invoice_number");
+      write("purchase_order_number", "references.purchase_order_number");
 
       const res = await api.documents.updateExtraction(documentId, updatedJson);
       setIsEditing(false);
-      if (onExtractionUpdated) {
-        onExtractionUpdated(res);
-      }
+      onExtractionUpdated?.(res);
+      toast.success("Changes saved", "The extracted fields were updated.");
     } catch {
-      alert("Failed to save updated extraction data.");
+      toast.error("Save failed", "The updated extraction could not be saved.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleCopyJson = () => {
-    navigator.clipboard.writeText(JSON.stringify(rawData, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleReprocess = async () => {
+    try {
+      setIsReprocessing(true);
+      const res = await api.documents.reprocess(documentId);
+      onExtractionUpdated?.(res);
+      toast.success(
+        "Re-extraction complete",
+        "The document was processed by the AI pipeline again."
+      );
+    } catch {
+      toast.error(
+        "Re-extraction failed",
+        "The document could not be processed. Please try again."
+      );
+    } finally {
+      setIsReprocessing(false);
+    }
+  };
+
+  const handleCopyJson = async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(rawData, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Copy failed", "Clipboard access was denied by the browser.");
+    }
   };
 
   const handleDownloadJson = () => {
-    const blob = new Blob([JSON.stringify(rawData, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `extraction_${documentId.slice(0, 8)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadFile(
+      JSON.stringify(rawData, null, 2),
+      `extraction_${documentId.slice(0, 8)}.json`,
+      "application/json"
+    );
   };
 
   const handleDownloadCsv = () => {
-    const getVal = (paths: string[], evKeys: string[]) => getField(paths, evKeys)?.value || "";
-    const getConf = (paths: string[], evKeys: string[]) => getField(paths, evKeys)?.confidence || "";
-    const getSrc = (paths: string[], evKeys: string[]) => getField(paths, evKeys)?.source_text || "";
-
-    const rows = [
-      ["Field", "Value", "Confidence", "Source Snippet"],
-      ["B/L Number", getVal(["document_metadata.bl_number", "bl_number"], ["bl_number"]), getConf(["document_metadata.bl_number", "bl_number"], ["bl_number"]), getSrc(["document_metadata.bl_number", "bl_number"], ["bl_number"])],
-      ["B/L Date", getVal(["document_metadata.bl_date", "bl_date"], ["bl_date"]), getConf(["document_metadata.bl_date", "bl_date"], ["bl_date"]), getSrc(["document_metadata.bl_date", "bl_date"], ["bl_date"])],
-      ["B/L Type", getVal(["document_metadata.bl_type", "bl_type"], ["bl_type"]), getConf(["document_metadata.bl_type", "bl_type"], ["bl_type"]), ""],
-      ["Shipper Name", getVal(["parties.shipper.name", "shipper.name"], ["shipper_name"]), getConf(["parties.shipper.name", "shipper.name"], ["shipper_name"]), ""],
-      ["Shipper Address", getVal(["parties.shipper.address", "shipper.address"], ["shipper_address"]), getConf(["parties.shipper.address", "shipper.address"], ["shipper_address"]), ""],
-      ["Consignee Name", getVal(["parties.consignee.name", "consignee.name"], ["consignee_name"]), getConf(["parties.consignee.name", "consignee.name"], ["consignee_name"]), ""],
-      ["Carrier", getVal(["shipment.carrier", "carrier"], ["carrier"]), getConf(["shipment.carrier", "carrier"], ["carrier"]), ""],
-      ["Vessel Name", getVal(["shipment.vessel_name", "vessel_name"], ["vessel_name"]), getConf(["shipment.vessel_name", "vessel_name"], ["vessel_name"]), ""],
-      ["Voyage Number", getVal(["shipment.voyage_number", "voyage_number"], ["voyage_number"]), getConf(["shipment.voyage_number", "voyage_number"], ["voyage_number"]), ""],
-      ["Port of Loading", getVal(["shipment.port_of_loading", "port_of_loading"], ["port_of_loading"]), getConf(["shipment.port_of_loading", "port_of_loading"], ["port_of_loading"]), ""],
-      ["Port of Discharge", getVal(["shipment.port_of_discharge", "port_of_discharge"], ["port_of_discharge"]), getConf(["shipment.port_of_discharge", "port_of_discharge"], ["port_of_discharge"]), ""],
-      ["Gross Weight", getVal(["cargo.gross_weight", "gross_weight"], ["gross_weight"]), getConf(["cargo.gross_weight", "gross_weight"], ["gross_weight"]), ""],
-      ["Cargo Description", getVal(["cargo.description", "description"], ["cargo_description"]), getConf(["cargo.description", "description"], ["cargo_description"]), ""],
-      ["Freight Terms", getVal(["freight.terms", "freight_terms"], ["freight_terms"]), getConf(["freight.terms", "freight_terms"], ["freight_terms"]), ""],
+    const rows: (string | number)[][] = [
+      ["Section", "Field", "Value", "Confidence %", "Source snippet"],
     ];
+    const escape = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
 
-    const csvContent = "data:text/csv;charset=utf-8," + rows.map((e) => e.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `extraction_${documentId.slice(0, 8)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    for (const section of SECTIONS) {
+      for (const field of section.fields) {
+        const resolved = getField(field.paths, field.evidenceKeys);
+        rows.push([
+          section.title,
+          field.label,
+          resolved?.value ?? "",
+          resolved ? Math.round(resolved.confidence * 100) : "",
+          resolved?.source_text ?? "",
+        ]);
+      }
+    }
+
+    const csv = rows.map((row) => row.map(escape).join(",")).join("\n");
+    downloadFile(csv, `extraction_${documentId.slice(0, 8)}.csv`, "text/csv;charset=utf-8;");
   };
 
-  const renderField = (
-    label: string,
-    paths: string[],
-    evidenceKeys: string[] = [],
-    editKey?: string
-  ) => {
-    const field = getField(paths, evidenceKeys);
-    const formKey = editKey || (paths[0] ? paths[0].replace(/\./g, "_") : label);
+  // Resolve every field once per render so counters, filters and rows agree.
+  const resolvedSections = SECTIONS.map((section) => {
+    const entries = section.fields.map((field) => ({
+      field,
+      value: getField(field.paths, field.evidenceKeys),
+    }));
+
+    const query = fieldQuery.trim().toLowerCase();
+    const visible = entries.filter(({ field, value }) => {
+      if (!showEmptyFields && !value) return false;
+      if (!query) return true;
+      return (
+        field.label.toLowerCase().includes(query) ||
+        (value?.value ?? "").toLowerCase().includes(query)
+      );
+    });
+
+    return { ...section, entries, visible };
+  });
+
+  const allFields = resolvedSections.flatMap((section) =>
+    section.entries.map((entry) => entry.value)
+  );
+  const extractedCount = allFields.filter(Boolean).length;
+  const totalCount = allFields.length;
+  const averageConfidence =
+    extractedCount > 0
+      ? allFields.reduce((sum, field) => sum + (field?.confidence ?? 0), 0) / extractedCount
+      : null;
+
+  const containersList = Array.isArray(rawData.containers) ? rawData.containers : [];
+  const dangerousGoods = rawData.dangerous_goods;
+  const validation =
+    VALIDATION_BADGES[extraction.validation_status] ?? VALIDATION_BADGES.pending;
+  const hasDangerousGoods = Boolean(
+    dangerousGoods &&
+      (dangerousGoods.un_number?.value ||
+        dangerousGoods.imo_class?.value ||
+        dangerousGoods.un_number ||
+        dangerousGoods.imo_class)
+  );
+
+  const visibleSections = resolvedSections.filter((section) => section.visible.length > 0);
+
+  const renderField = (field: FieldDef) => {
+    const resolved = getField(field.paths, field.evidenceKeys);
+    const formKey = field.editKey ?? field.paths[0].replace(/\./g, "_");
 
     if (isEditing) {
       return (
-        <div className="py-2.5 flex flex-col gap-1 border-b border-slate-100 dark:border-slate-800/60">
-          <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-            {label}
+        <div key={field.label} className="space-y-1.5 rounded-xl bg-surface-muted/60 p-3">
+          <label
+            htmlFor={`edit-${formKey}`}
+            className="block text-[11px] font-semibold uppercase tracking-wide text-ink-subtle"
+          >
+            {field.label}
           </label>
-          <input
-            type="text"
-            value={editFormData[formKey] ?? (field?.value ? String(field.value) : "")}
-            onChange={(e) =>
-              setEditFormData((prev) => ({ ...prev, [formKey]: e.target.value }))
+          <Input
+            id={`edit-${formKey}`}
+            value={editFormData[formKey] ?? (resolved?.value ? String(resolved.value) : "")}
+            onChange={(event) =>
+              setEditFormData((prev) => ({ ...prev, [formKey]: event.target.value }))
             }
-            className="w-full text-xs px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="h-9 text-sm"
           />
         </div>
       );
     }
 
-    if (!field || field.value === null || field.value === undefined || field.value === "") {
+    if (!resolved) {
       return (
-        <div className="py-2.5 flex justify-between items-center text-xs border-b border-slate-100 dark:border-slate-800/60">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">{label}</span>
-          <span className="text-slate-300 dark:text-slate-600 italic">Not extracted</span>
+        <div
+          key={field.label}
+          className="flex items-baseline justify-between gap-3 border-b border-line/60 py-2.5 last:border-0"
+        >
+          <span className="text-xs font-medium text-ink-muted">{field.label}</span>
+          <span className="text-xs italic text-ink-subtle">Not extracted</span>
         </div>
       );
     }
 
-    const conf = field.confidence ?? 0.85;
+    const level = confidenceLevel(resolved.confidence);
 
     return (
-      <div className="py-2.5 flex flex-col gap-1 border-b border-slate-100 dark:border-slate-800/60 transition-colors hover:bg-slate-50/50 dark:hover:bg-slate-800/20 px-2 rounded-lg -mx-2">
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-slate-500 dark:text-slate-400 font-medium">
-            {label}
-          </span>
-          <div className="flex items-center gap-1.5">
-            {field.page !== undefined && field.page !== null && (
-              <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 rounded">p.{field.page}</span>
+      <div
+        key={field.label}
+        className="border-b border-line/60 py-2.5 transition-colors last:border-0 hover:bg-surface-hover/50"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <span className="text-xs font-medium text-ink-muted">{field.label}</span>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {resolved.page !== undefined && resolved.page !== null && (
+              <span className="rounded border border-line bg-surface-muted px-1 py-px text-[10px] text-ink-subtle">
+                p.{resolved.page}
+              </span>
             )}
-            <span
-              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                conf >= 0.8
-                  ? "bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40"
-                  : conf >= 0.6
-                  ? "bg-amber-50 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800/40"
-                  : "bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/40"
-              }`}
-            >
-              {formatConfidence(conf)}
-            </span>
+            <ConfidenceBadge score={resolved.confidence} showIcon />
           </div>
         </div>
-        <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 leading-snug break-words">
-          {String(field.value)}
-        </div>
-        {field.source_text && (
-          <div className="text-[10px] text-slate-500 dark:text-slate-400 italic bg-slate-50 dark:bg-slate-800/40 p-1.5 rounded-md font-mono border border-slate-200/50 dark:border-slate-800/40 mt-0.5 break-words">
-            &quot;{field.source_text}&quot;
-          </div>
+
+        <p
+          className={cn(
+            "mt-1 break-words text-sm font-semibold leading-snug text-ink",
+            level === "low" && "text-rose-700 dark:text-rose-300"
+          )}
+        >
+          {resolved.value}
+        </p>
+
+        {resolved.source_text && (
+          <p className="mt-1.5 border-l-2 border-line bg-surface-muted/70 px-2 py-1 font-mono text-[10px] leading-relaxed text-ink-muted">
+            &ldquo;{resolved.source_text}&rdquo;
+          </p>
         )}
       </div>
     );
   };
 
-  const containersList = Array.isArray(rawData.containers) ? rawData.containers : [];
-  const dangerousGoods = rawData.dangerous_goods;
-
   return (
-    <div className="space-y-6">
-      {/* Schema Status Header & Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
-            <CheckCircle2 className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {formatDocType(documentType || "bill_of_lading")} Extraction
-              </h4>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
-                v{extraction.schema_version || "2.0"}
-              </span>
+    <div className="space-y-5">
+      {/* Overview + toolbar */}
+      <Card className="overflow-hidden">
+        <div className="flex flex-col gap-5 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <ConfidenceRing score={extraction.confidence_score} />
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold text-ink">
+                  {formatDocType(documentType || "bill_of_lading")} extraction
+                </h2>
+                <Badge variant="neutral" size="sm">
+                  v{extraction.schema_version || "2.0"}
+                </Badge>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Badge variant={validation.variant} size="sm">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {validation.label}
+                </Badge>
+                <span className="text-xs text-ink-muted tabular">
+                  {extractedCount} of {totalCount} fields extracted
+                  {averageConfidence !== null && (
+                    <>
+                      {" · avg "}
+                      <span className="font-semibold text-ink">
+                        {formatConfidence(averageConfidence)}
+                      </span>
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Status: <span className="font-semibold text-slate-700 dark:text-slate-300">{(extraction.validation_status ?? "pending").toUpperCase()}</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditing(false)}
+                  disabled={isSaving}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveEdit} disabled={isSaving}>
+                  {isSaving ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="h-3.5 w-3.5" />
+                  )}
+                  {isSaving ? "Saving…" : "Save changes"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" size="sm" onClick={handleStartEdit}>
+                  <Edit3 className="h-3.5 w-3.5" />
+                  Edit fields
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleCopyJson}>
+                  {copied ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  {copied ? "Copied" : "Copy JSON"}
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadJson}>
+                  <FileJson className="h-3.5 w-3.5" />
+                  JSON
+                </Button>
+                <Button variant="outline" size="sm" onClick={handleDownloadCsv}>
+                  <Download className="h-3.5 w-3.5" />
+                  CSV
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReprocess}
+                  disabled={isReprocessing}
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", isReprocessing && "animate-spin")} />
+                  {isReprocessing ? "Processing…" : "Re-extract"}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {!isEditing && (
+          <div className="flex flex-col gap-3 border-t border-line bg-surface-muted/50 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="w-full sm:max-w-xs">
+              <Input
+                type="search"
+                value={fieldQuery}
+                onChange={(event) => setFieldQuery(event.target.value)}
+                placeholder="Filter extracted fields…"
+                aria-label="Filter extracted fields"
+                leadingIcon={<Search />}
+                className="h-9 bg-surface [&::-webkit-search-cancel-button]:hidden"
+              />
+            </div>
+
+            <div className="flex items-center gap-4">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-muted">
+                <input
+                  type="checkbox"
+                  checked={showEmptyFields}
+                  onChange={(event) => setShowEmptyFields(event.target.checked)}
+                  className="focus-ring h-3.5 w-3.5 cursor-pointer rounded border-line-strong accent-brand-600"
+                />
+                Show empty fields
+              </label>
+              <button
+                type="button"
+                onClick={() => setShowRawJson((open) => !open)}
+                className="focus-ring rounded text-xs font-semibold text-brand-600 transition-colors hover:text-brand-700 dark:text-brand-300"
+                aria-expanded={showRawJson}
+              >
+                {showRawJson ? "Hide raw JSON" : "View raw JSON"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showRawJson && !isEditing && (
+          <div className="border-t border-line bg-surface-muted/40 p-5">
+            <pre className="max-h-80 overflow-auto rounded-xl border border-line bg-surface p-4 font-mono text-[11px] leading-relaxed text-ink-muted">
+              {JSON.stringify(rawData, null, 2)}
+            </pre>
+          </div>
+        )}
+      </Card>
+
+      {isEditing && (
+        <Alert variant="info" title="Editing extracted fields" role="status">
+          Corrections are written back to the extraction record and tracked in the audit history.
+        </Alert>
+      )}
+
+      {/* Dangerous goods */}
+      {hasDangerousGoods && (
+        <div className="flex items-start gap-4 rounded-2xl border border-amber-300 bg-gradient-to-r from-amber-50 to-orange-50 p-5 dark:border-amber-900/60 dark:from-amber-950/30 dark:to-orange-950/20">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-soft [&_svg]:size-5">
+            <Flame />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-amber-900 dark:text-amber-200">
+              IMDG dangerous goods detected
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-amber-800/90 dark:text-amber-300/90">
+              This shipment contains hazardous cargo regulated under the International Maritime
+              Dangerous Goods Code.
             </p>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {isEditing ? (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsEditing(false)}
-                disabled={isSaving}
-                className="text-xs"
-              >
-                <X className="w-3.5 h-3.5 mr-1.5" />
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSaveEdit}
-                disabled={isSaving}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-sm shadow-emerald-500/20"
-              >
-                <Save className="w-3.5 h-3.5 mr-1.5" />
-                {isSaving ? "Saving..." : "Save Changes"}
-              </Button>
-            </>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleStartEdit}
-                className="text-xs"
-              >
-                <Edit3 className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-                Edit Fields
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleCopyJson}
-                className="text-xs"
-              >
-                {copied ? <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 mr-1.5 text-slate-500" />}
-                {copied ? "Copied" : "JSON"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleDownloadCsv}
-                className="text-xs"
-              >
-                <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-                CSV
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    setIsReprocessing(true);
-                    const res = await api.documents.reprocess(documentId);
-                    if (onExtractionUpdated) onExtractionUpdated(res);
-                  } catch {
-                    alert("Failed to reprocess document.");
-                  } finally {
-                    setIsReprocessing(false);
-                  }
-                }}
-                disabled={isReprocessing}
-                className="text-xs"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 mr-1.5 text-slate-500 ${isReprocessing ? "animate-spin" : ""}`} />
-                {isReprocessing ? "Processing..." : "Re-extract"}
-              </Button>
-            </>
-          )}
-
-          {extraction.confidence_score !== null && extraction.confidence_score !== undefined && (
-            <div className="hidden lg:flex items-center gap-2 pl-3 ml-2 border-l border-slate-200 dark:border-slate-800">
-              <span className="text-xs text-slate-400">Confidence:</span>
-              <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">
-                {formatConfidence(extraction.confidence_score)}
-              </span>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(dangerousGoods.un_number?.value || dangerousGoods.un_number) && (
+                <span className="rounded-lg border border-amber-300 bg-amber-100/80 px-3 py-1.5 font-mono text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                  UN {dangerousGoods.un_number?.value || dangerousGoods.un_number}
+                </span>
+              )}
+              {(dangerousGoods.imo_class?.value || dangerousGoods.imo_class) && (
+                <span className="rounded-lg border border-amber-300 bg-amber-100/80 px-3 py-1.5 font-mono text-xs font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                  IMO class {dangerousGoods.imo_class?.value || dangerousGoods.imo_class}
+                </span>
+              )}
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Structured Sections Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Section 1: Document Information */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-            <FileText className="w-4 h-4 text-blue-500" />
-            Document Information
-          </div>
-          {renderField("B/L Number", ["document_metadata.bl_number", "bl_number"], ["bl_number"], "bl_number")}
-          {renderField("B/L Date", ["document_metadata.bl_date", "bl_date", "issue_date", "dates.bl_date", "dates.issue_date"], ["bl_date", "issue_date"], "bl_date")}
-          {renderField("B/L Type", ["document_metadata.bl_type", "bl_type"], ["bl_type"], "bl_type")}
-          {renderField("B/L Status", ["document_metadata.bl_status", "bl_status"], ["bl_status"], "bl_status")}
-          {renderField("Place of Issue", ["document_metadata.place_of_issue", "place_of_issue"], ["place_of_issue"], "place_of_issue")}
-          {renderField("Original Copies", ["document_metadata.original_copies", "original_copies"], ["original_copies"], "original_copies")}
-        </div>
-
-        {/* Section 2: Parties */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-            <UserCheck className="w-4 h-4 text-indigo-500" />
-            Parties
-          </div>
-          {renderField("Shipper Name", ["parties.shipper.name", "shipper.name", "shipper"], ["shipper_name", "shipper.name"], "shipper_name")}
-          {renderField("Shipper Address", ["parties.shipper.address", "shipper.address"], ["shipper_address", "shipper.address"], "shipper_address")}
-          {renderField("Consignee Name", ["parties.consignee.name", "consignee.name", "consignee"], ["consignee_name", "consignee.name"], "consignee_name")}
-          {renderField("Consignee Address", ["parties.consignee.address", "consignee.address"], ["consignee_address", "consignee.address"], "consignee_address")}
-          {renderField("Notify Party Name", ["parties.notify_party.name", "notify_party.name", "notify_party"], ["notify_party_name", "notify_party.name"], "notify_party_name")}
-          {renderField("Notify Party Address", ["parties.notify_party.address", "notify_party.address"], ["notify_party_address", "notify_party.address"], "notify_party_address")}
-        </div>
-
-        {/* Section 3: Shipment */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-            <Ship className="w-4 h-4 text-cyan-500" />
-            Shipment
-          </div>
-          {renderField("Carrier", ["shipment.carrier", "carrier", "shipment.shipping_line", "shipping_line"], ["carrier", "shipping_line"], "carrier")}
-          {renderField("Vessel Name", ["shipment.vessel_name", "vessel_name"], ["vessel_name"], "vessel_name")}
-          {renderField("Voyage Number", ["shipment.voyage_number", "voyage_number"], ["voyage_number"], "voyage_number")}
-          {renderField("Place of Receipt", ["shipment.place_of_receipt", "place_of_receipt"], ["place_of_receipt"], "place_of_receipt")}
-          {renderField("Port of Loading (POL)", ["shipment.port_of_loading", "port_of_loading"], ["port_of_loading"], "port_of_loading")}
-          {renderField("Port of Discharge (POD)", ["shipment.port_of_discharge", "port_of_discharge"], ["port_of_discharge"], "port_of_discharge")}
-          {renderField("Place of Delivery", ["shipment.place_of_delivery", "place_of_delivery", "final_destination"], ["place_of_delivery", "final_destination"], "place_of_delivery")}
-        </div>
-
-        {/* Section 4: Dates */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-            <Calendar className="w-4 h-4 text-rose-500" />
-            Dates
-          </div>
-          {renderField("On Board Date", ["dates.on_board_date", "on_board_date"], ["on_board_date"], "on_board_date")}
-          {renderField("Issue Date", ["document_metadata.bl_date", "bl_date", "dates.issue_date", "dates.bl_date"], ["bl_date", "issue_date"], "bl_date")}
-        </div>
-
-        {/* Section 5: Cargo */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-            <Package className="w-4 h-4 text-amber-500" />
-            Cargo
-          </div>
-          {renderField("Cargo Description", ["cargo.description", "description", "cargo.commodity", "commodity"], ["cargo_description", "description"], "description")}
-          {renderField("HS Code", ["cargo.hs_code", "hs_code"], ["hs_code"], "hs_code")}
-          {renderField("Marks & Numbers", ["cargo.marks_and_numbers", "marks_and_numbers"], ["marks_and_numbers"], "marks_and_numbers")}
-          {renderField("Number of Packages", ["cargo.number_of_packages", "number_of_packages", "cargo.package_type"], ["number_of_packages"], "number_of_packages")}
-          {renderField("Gross Weight", ["cargo.gross_weight", "gross_weight"], ["gross_weight"], "gross_weight")}
-          {renderField("Net Weight", ["cargo.net_weight", "net_weight"], ["net_weight"], "net_weight")}
-          {renderField("CBM / Volume", ["cargo.cbm", "cbm", "cargo.volume", "volume"], ["cbm", "volume"], "cbm")}
-        </div>
-
-        {/* Section 6 & 7: Freight & References */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm flex flex-col justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-              <DollarSign className="w-4 h-4 text-emerald-500" />
-              Freight
-            </div>
-            {renderField("Freight Terms", ["freight.terms", "freight_terms"], ["freight_terms"], "freight_terms")}
-            {renderField("Freight Amount", ["freight.amount", "freight_amount", "prepaid_amount", "collect_amount"], ["freight_amount"], "freight_amount")}
-            {renderField("Currency", ["freight.currency", "freight_currency", "currency"], ["currency", "freight_currency"], "currency")}
-          </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-              <Info className="w-4 h-4 text-purple-500" />
-              References
-            </div>
-            {renderField("Booking Number", ["shipment.booking_number", "booking_number"], ["booking_number"], "booking_number")}
-            {renderField("Invoice Number", ["references.invoice_number", "invoice_number"], ["invoice_number"], "invoice_number")}
-            {renderField("Purchase Order No.", ["references.purchase_order_number", "purchase_order_number"], ["purchase_order_number"], "purchase_order_number")}
-          </div>
-        </div>
-      </div>
-
-      {/* Section 8: Containers Table */}
-      {containersList.length > 0 && (
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 p-5 shadow-sm">
-          <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 font-bold text-sm">
-            <Container className="w-4 h-4 text-blue-500" />
-            Containers ({containersList.length})
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-400 font-semibold">
-                  <th className="pb-2.5 pl-2 font-semibold">Container Number</th>
-                  <th className="pb-2.5 font-semibold">Seal Number</th>
-                  <th className="pb-2.5 font-semibold">Container Type</th>
-                  <th className="pb-2.5 pr-2 font-semibold">Confidence</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {containersList.map((cntr: any, idx: number) => {
-                  const num = cntr.container_number?.value || cntr.container_number || "-";
-                  const seal = cntr.seal_number?.value || cntr.seal_number || "-";
-                  const type = cntr.container_type?.value || cntr.container_size?.value || cntr.container_type || "-";
-                  const conf = cntr.container_number?.confidence ?? extraction.confidence_score ?? 0.95;
-
-                  return (
-                    <tr key={idx} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="py-3 pl-2 font-mono font-bold text-blue-600 dark:text-blue-400">
-                        {num}
-                      </td>
-                      <td className="py-3 font-mono text-slate-700 dark:text-slate-300">
-                        {seal}
-                      </td>
-                      <td className="py-3 text-slate-600 dark:text-slate-300">
-                        <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium">
-                          {type}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-2">
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400">
-                          {formatConfidence(conf)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
 
-      {/* Dangerous Goods Banner if detected */}
-      {dangerousGoods && (dangerousGoods.un_number?.value || dangerousGoods.imo_class?.value || dangerousGoods.un_number || dangerousGoods.imo_class) && (
-        <div className="rounded-2xl border border-amber-300 dark:border-amber-900/60 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 p-5 shadow-sm">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500 text-white flex-shrink-0 shadow-md shadow-amber-500/30">
-              <Flame className="w-5 h-5" />
-            </div>
-            <div className="flex-1">
-              <h4 className="text-sm font-bold text-amber-900 dark:text-amber-200">
-                IMDG Dangerous Goods Detected
-              </h4>
-              <p className="text-xs text-amber-700 dark:text-amber-300/90 mt-0.5">
-                This shipment contains hazardous cargo regulated under the International Maritime Dangerous Goods Code.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-4 text-xs font-mono">
-                {(dangerousGoods.un_number?.value || dangerousGoods.un_number) && (
-                  <div className="bg-amber-100/80 dark:bg-amber-900/50 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 font-bold text-amber-900 dark:text-amber-200">
-                    UN NUMBER: {dangerousGoods.un_number?.value || dangerousGoods.un_number}
-                  </div>
-                )}
-                {(dangerousGoods.imo_class?.value || dangerousGoods.imo_class) && (
-                  <div className="bg-amber-100/80 dark:bg-amber-900/50 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 font-bold text-amber-900 dark:text-amber-200">
-                    IMO CLASS: {dangerousGoods.imo_class?.value || dangerousGoods.imo_class}
-                  </div>
-                )}
+      {/* Field sections */}
+      {visibleSections.length === 0 ? (
+        <Card>
+          <EmptyState
+            compact
+            icon={Search}
+            title="No fields match your filter"
+            description="Try a different search term or re-enable empty fields."
+            action={
+              <Button variant="outline" size="sm" onClick={() => setFieldQuery("")}>
+                Clear filter
+              </Button>
+            }
+          />
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          {visibleSections.map((section) => (
+            <Card key={section.key} className="overflow-hidden">
+              <div className="flex items-center gap-2.5 border-b border-line px-5 py-3.5">
+                <section.icon className={cn("h-4 w-4", section.iconClass)} aria-hidden />
+                <h3 className="text-sm font-semibold text-ink">{section.title}</h3>
+                <span className="ml-auto rounded-md bg-surface-muted px-1.5 py-0.5 text-[10px] font-semibold tabular text-ink-subtle">
+                  {section.visible.filter((entry) => entry.value).length}/
+                  {section.entries.length}
+                </span>
               </div>
-            </div>
-          </div>
+              <div
+                className={cn(
+                  "px-5 py-2",
+                  isEditing && "grid grid-cols-1 gap-3 py-4 sm:grid-cols-2"
+                )}
+              >
+                {section.visible.map(({ field }) => renderField(field))}
+              </div>
+            </Card>
+          ))}
         </div>
+      )}
+
+      {/* Containers */}
+      {containersList.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="flex items-center gap-2.5 border-b border-line px-5 py-3.5">
+            <Package className="h-4 w-4 text-brand-500" aria-hidden />
+            <h3 className="text-sm font-semibold text-ink">Containers</h3>
+            <Badge variant="neutral" size="sm" className="ml-auto">
+              {containersList.length}
+            </Badge>
+          </div>
+          <TableWrapper>
+            <Table>
+              <thead>
+                <tr>
+                  <Th>Container number</Th>
+                  <Th>Seal number</Th>
+                  <Th>Type</Th>
+                  <Th className="text-right">Confidence</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {containersList.map((container: any, index: number) => {
+                  const number =
+                    container.container_number?.value || container.container_number || "—";
+                  const seal =
+                    container.seal_number?.value || container.seal_number || "—";
+                  const type =
+                    container.container_type?.value ||
+                    container.container_size?.value ||
+                    container.container_type ||
+                    "—";
+                  const confidence =
+                    container.container_number?.confidence ??
+                    extraction.confidence_score ??
+                    0.95;
+
+                  return (
+                    <Tr key={index}>
+                      <Td className="font-mono text-xs font-semibold text-brand-700 dark:text-brand-300">
+                        {number}
+                      </Td>
+                      <Td className="font-mono text-xs text-ink-muted">{seal}</Td>
+                      <Td>
+                        <span className="rounded-md border border-line bg-surface-muted px-2 py-0.5 text-[11px] font-medium text-ink-muted">
+                          {type}
+                        </span>
+                      </Td>
+                      <Td className="text-right">
+                        <ConfidenceBadge score={confidence} />
+                      </Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </Table>
+          </TableWrapper>
+        </Card>
       )}
     </div>
   );

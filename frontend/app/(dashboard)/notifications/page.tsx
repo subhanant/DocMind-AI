@@ -1,22 +1,50 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  AlertTriangle,
   Bell,
   CheckCheck,
-  FileText,
-  AlertCircle,
-  Info,
   ExternalLink,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
+  FileCheck2,
+  Info,
 } from "lucide-react";
 import { NotificationItem } from "@/types";
 import { api } from "@/lib/api";
-import { formatDate } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Pagination } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn, formatDate, formatDateTime } from "@/lib/utils";
+
+const PAGE_SIZE = 15;
+
+const TYPE_STYLES: Record<string, { plate: string; icon: React.ElementType }> = {
+  upload_complete: {
+    plate: "bg-brand-50 text-brand-600 dark:bg-brand-950/50 dark:text-brand-300",
+    icon: FileCheck2,
+  },
+  processing_complete: {
+    plate: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300",
+    icon: FileCheck2,
+  },
+  processing_failed: {
+    plate: "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300",
+    icon: AlertTriangle,
+  },
+  needs_review: {
+    plate: "bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300",
+    icon: AlertTriangle,
+  },
+};
+
+const FILTERS = [
+  { value: false, label: "All notifications" },
+  { value: true, label: "Unread only" },
+];
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -31,214 +59,223 @@ export default function NotificationsPage() {
       setIsLoading(true);
       const res = await api.notifications.list({
         page,
-        size: 15,
+        size: PAGE_SIZE,
         unread_only: unreadOnly,
       });
       setNotifications(res.items);
       setTotal(res.total);
       setTotalPages(res.pages);
     } catch {
-      // ignore
+      // Fail quietly — the empty state covers this case.
     } finally {
       setIsLoading(false);
     }
   }, [page, unreadOnly]);
 
   useEffect(() => {
-    loadNotifications();
+    const timeout = setTimeout(() => void loadNotifications(), 0);
+    return () => clearTimeout(timeout);
   }, [loadNotifications]);
 
   const handleMarkAsRead = async (id: string) => {
     try {
       await api.notifications.markAsRead(id);
       setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+        prev.map((item) => (item.id === id ? { ...item, is_read: true } : item))
       );
     } catch {
-      // ignore
+      // no-op
     }
   };
 
   const handleMarkAllRead = async () => {
     try {
       await api.notifications.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })));
     } catch {
-      // ignore
+      // no-op
     }
   };
 
-  const getIcon = (type: string) => {
-    switch (type) {
-      case "upload_complete":
-      case "processing_complete":
-        return <FileText className="w-5 h-5 text-blue-500" />;
-      case "processing_failed":
-        return <AlertCircle className="w-5 h-5 text-rose-500" />;
-      case "needs_review":
-        return <AlertCircle className="w-5 h-5 text-amber-500" />;
-      default:
-        return <Info className="w-5 h-5 text-slate-500" />;
-    }
-  };
+  const unreadCount = notifications.filter((item) => !item.is_read).length;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-            Notifications Center
-          </h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            System updates, document upload confirmations, and processing alerts.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleMarkAllRead}
-            className="text-xs gap-1.5"
-          >
-            <CheckCheck className="w-3.5 h-3.5" /> Mark all as read
+    <div className="mx-auto max-w-4xl space-y-6">
+      <PageHeader
+        eyebrow="Activity"
+        title="Notifications"
+        description="Upload confirmations, extraction results and processing alerts for your workspace."
+        actions={
+          <Button variant="outline" size="sm" onClick={handleMarkAllRead} className="gap-1.5">
+            <CheckCheck className="h-3.5 w-3.5" />
+            Mark all as read
           </Button>
-        </div>
+        }
+      />
+
+      {/* Filter segmented control */}
+      <div
+        role="tablist"
+        aria-label="Notification filter"
+        className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface-muted p-1"
+      >
+        {FILTERS.map((filter) => {
+          const active = unreadOnly === filter.value;
+          return (
+            <button
+              key={filter.label}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => {
+                setUnreadOnly(filter.value);
+                setPage(1);
+              }}
+              className={cn(
+                "focus-ring rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors duration-150",
+                active
+                  ? "bg-surface text-ink shadow-card"
+                  : "text-ink-muted hover:bg-surface-hover hover:text-ink"
+              )}
+            >
+              {filter.label}
+              {filter.value && unreadCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-brand-600 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-        <button
-          onClick={() => {
-            setUnreadOnly(false);
-            setPage(1);
-          }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-            !unreadOnly
-              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          All Notifications
-        </button>
-        <button
-          onClick={() => {
-            setUnreadOnly(true);
-            setPage(1);
-          }}
-          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-            unreadOnly
-              ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-              : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
-          }`}
-        >
-          Unread Only
-        </button>
-      </div>
-
-      {/* Notification List Card */}
-      <div className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden">
+      <Card className="overflow-hidden">
         {isLoading ? (
-          <div className="py-20 text-center text-xs text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-600 mb-2" />
-            <p>Loading notifications...</p>
-          </div>
-        ) : notifications.length === 0 ? (
-          <div className="py-16 text-center">
-            <Bell className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-              No notifications
-            </h4>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto mt-1">
-              {unreadOnly
-                ? "You're all caught up! No unread notifications found."
-                : "No notifications generated yet. Uploading a document will automatically send status alerts."}
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-slate-100 dark:divide-slate-800">
-            {notifications.map((item) => (
-              <div
-                key={item.id}
-                className={`p-4 flex items-start gap-4 transition-colors ${
-                  !item.is_read
-                    ? "bg-blue-50/30 dark:bg-blue-950/20"
-                    : "hover:bg-slate-50/60 dark:hover:bg-slate-800/30"
-                }`}
-              >
-                <div className="mt-0.5 flex-shrink-0 p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
-                  {getIcon(item.type)}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-1">
-                    <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      {item.title}
-                    </h4>
-                    <span className="text-[11px] text-slate-400">
-                      {formatDate(item.created_at)}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                    {item.message}
-                  </p>
-
-                  <div className="flex items-center gap-4 mt-3">
-                    {item.document_id && (
-                      <Link
-                        href={`/documents/${item.document_id}`}
-                        className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline inline-flex items-center gap-1"
-                      >
-                        Inspect document <ExternalLink className="w-3 h-3" />
-                      </Link>
-                    )}
-
-                    {!item.is_read && (
-                      <button
-                        onClick={() => handleMarkAsRead(item.id)}
-                        className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
-                      >
-                        Mark as read
-                      </button>
-                    )}
-                  </div>
+          <div className="divide-y divide-line">
+            {Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="flex gap-4 p-5">
+                <Skeleton className="h-10 w-10 shrink-0 rounded-xl" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3 w-1/3" />
+                  <Skeleton className="h-2.5 w-3/4" />
                 </div>
               </div>
             ))}
           </div>
+        ) : notifications.length === 0 ? (
+          <EmptyState
+            icon={Bell}
+            title={unreadOnly ? "You're all caught up" : "No notifications yet"}
+            description={
+              unreadOnly
+                ? "There are no unread notifications in your workspace."
+                : "Upload a document and status updates will appear here automatically."
+            }
+            action={
+              !unreadOnly ? (
+                <Link href="/upload">
+                  <Button size="sm">Upload a document</Button>
+                </Link>
+              ) : undefined
+            }
+          />
+        ) : (
+          <ul className="divide-y divide-line">
+            {notifications.map((item) => {
+              const style = TYPE_STYLES[item.type] ?? {
+                plate: "bg-surface-muted text-ink-subtle",
+                icon: Info,
+              };
+              const Icon = style.icon;
+
+              return (
+                <li
+                  key={item.id}
+                  className={cn(
+                    "relative flex items-start gap-4 p-5 transition-colors",
+                    item.is_read ? "hover:bg-surface-hover" : "bg-brand-50/30 dark:bg-brand-950/15"
+                  )}
+                >
+                  {!item.is_read && (
+                    <span
+                      aria-hidden
+                      className="absolute left-0 top-0 h-full w-0.5 bg-brand-500"
+                    />
+                  )}
+
+                  <span
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl [&_svg]:size-5",
+                      style.plate
+                    )}
+                  >
+                    <Icon />
+                  </span>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                      <h3
+                        className={cn(
+                          "text-sm",
+                          item.is_read
+                            ? "font-medium text-ink-muted"
+                            : "font-semibold text-ink"
+                        )}
+                      >
+                        {item.title}
+                      </h3>
+                      <time
+                        dateTime={item.created_at}
+                        title={formatDateTime(item.created_at)}
+                        className="shrink-0 text-[11px] text-ink-subtle"
+                      >
+                        {formatDate(item.created_at)}
+                      </time>
+                    </div>
+
+                    <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                      {item.message}
+                    </p>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-4">
+                      {item.document_id && (
+                        <Link
+                          href={`/documents/${item.document_id}`}
+                          className="focus-ring inline-flex items-center gap-1 rounded text-xs font-semibold text-brand-600 hover:underline dark:text-brand-300"
+                        >
+                          Inspect document
+                          <ExternalLink className="h-3 w-3" />
+                        </Link>
+                      )}
+                      {!item.is_read && (
+                        <button
+                          type="button"
+                          onClick={() => handleMarkAsRead(item.id)}
+                          className="focus-ring rounded text-xs text-ink-subtle transition-colors hover:text-ink"
+                        >
+                          Mark as read
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
 
-        {/* Pagination Footer */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 text-xs text-slate-500">
-            <span>
-              Page {page} of {totalPages} ({total} total)
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isLoading}
-                className="h-8 px-2 text-xs"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" /> Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages || isLoading}
-                className="h-8 px-2 text-xs"
-              >
-                Next <ChevronRight className="w-3.5 h-3.5" />
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            isLoading={isLoading}
+            onPageChange={setPage}
+            label="notifications"
+          />
         )}
-      </div>
+      </Card>
     </div>
   );
 }
